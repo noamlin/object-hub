@@ -1,0 +1,24 @@
+{
+	"name": "Object Hub",
+	"version": "0.1.0",
+	"description": "Object Hub for object synchronization between server and clients",
+	"license": "",
+	"main": "index.js",
+	"scripts": {
+		"start": "node index.js"
+	},
+	"dependencies": {
+	},
+	"engines": {
+		"node": "13.3.0"
+	},
+	"keywords": [
+		"object sync",
+		"object synchronization",
+		"object mirroring"
+	],
+	"author": "Noam Lin",
+	"contributors": [
+		"Noam Lin <noamlin@gmail.com>"
+	]
+}
