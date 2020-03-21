@@ -1,13 +1,17 @@
 {
-	"name": "Object Hub",
+	"name": "object-hub",
 	"version": "0.1.0",
 	"description": "Object Hub for object synchronization between server and clients",
 	"license": "",
-	"main": "index.js",
+	"main": "oh.js",
 	"scripts": {
-		"start": "node index.js"
+		"start": "node index.js",
+		"example": "node example.js"
 	},
 	"dependencies": {
+		"express": "^4.17.1",
+		"observable-slim": "^0.1.5",
+		"socket.io": "^2.3.0"
 	},
 	"engines": {
 		"node": "13.3.0"
