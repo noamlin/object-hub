@@ -1,11 +1,15 @@
 "use strict"
 
-module.exports = exports = class Oh {
+class Oh {
 	constructor(rootPath) {
-		this.socket = io();
+		this.obj = {};
+		
+		this.socket = io(`/object-hub`, {
+			autoConnect: true
+		});
 
-		this.socket.on('stdout', (data) => {
-			//
+		this.socket.on('create', (data) => {
+			this.obj = data;
 		});
 	}
 };
