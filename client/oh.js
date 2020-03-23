@@ -4,7 +4,7 @@ class Oh {
 	constructor(rootPath) {
 		this.obj = {};
 		
-		this.socket = io(`/object-hub`, {
+		this.socket = io(`/object-hub/${rootPath}`, {
 			autoConnect: true
 		});
 

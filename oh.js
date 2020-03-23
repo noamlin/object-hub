@@ -35,26 +35,10 @@ function handleNewConnection(socket) {
 	this.io.to(socket.id).emit('create', this.obj);
 }
 
-function handleDisconnection(socket) {
-	try {
-		delete this.clients[socket.OH.id];
-		console.log(`socket.io user disconnected [ID: ${socket.id}]`);
-		this.emit('disconnection', socket);
-	}
-	catch(error) {
-		if(typeof socket !== 'string') {
-			console.error(error);
-		} else {
-			console.warn('Client disconnected before running disconnection protocol. manually searching and removing client');
-			let actualConnectedClients = this.io.connected;
-			let OhClientKeys = Object.keys(this.clients);
-			for(let key of OhClientKeys) {
-				if(!actualConnectedClients[ this.clients[key].id ]) {
-					handleDisconnection.call(this, this.clients[key]);
-				}
-			}
-		}
-	}
+function handleDisconnection(socket, reason) {
+	delete this.clients[socket.OH.id];
+	console.log(`socket.io user disconnected [ID: ${socket.id}]`);
+	this.emit('disconnection', socket);
 }
 
 module.exports = exports = class Oh extends EventEmitter {
@@ -62,7 +46,7 @@ module.exports = exports = class Oh extends EventEmitter {
 		super();
 
 		this.clients = {};
-		this.io = socketio(server).of(`/object-hub`);
+		this.io = socketio(server).of(`/object-hub/${rootPath}`);
 
 		this.io.on('connection', (socket) => {
 			handleNewConnection.call(this, socket);
@@ -71,7 +55,7 @@ module.exports = exports = class Oh extends EventEmitter {
 				//
 			});
 			
-			socket.on('disconnect', handleDisconnection.bind(this));
+			socket.on('disconnect', handleDisconnection.bind(this, socket));
 		});
 
 		this.obj = ObservableSlim.create(objBase, true, function(changes) {
