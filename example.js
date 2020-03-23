@@ -14,8 +14,8 @@ app.get('/', (req, res) => {
 app.get('/observable-slim.js', (req, res) => {
 	res.sendFile(__dirname + '/node_modules/observable-slim/observable-slim.js');
 });
-app.get('/oh.js', (req, res) => {
-	res.sendFile(__dirname + '/oh-client.js');
+app.get('/client/oh.js', (req, res) => {
+	res.sendFile(__dirname + '/client/oh.js');
 });
 
 let infrastructure = {
