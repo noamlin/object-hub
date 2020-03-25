@@ -7,7 +7,7 @@
 	"scripts": {
 		"start": "node index.js",
 		"example": "node example.js",
-		"test": "node test.js"
+		"test": "jest"
 	},
 	"dependencies": {
 		"express": "^4.17.1",
@@ -25,5 +25,8 @@
 	"author": "Noam Lin",
 	"contributors": [
 		"Noam Lin <noamlin@gmail.com>"
-	]
+	],
+	"devDependencies": {
+		"jest": "^25.1.0"
+	}
 }

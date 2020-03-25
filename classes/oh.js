@@ -3,7 +3,26 @@
 const EventEmitter = require('events');
 const socketio = require('socket.io');
 const ObservableSlim = require('observable-slim');
-const { onConnection, onDisconnection } = require('./handlers.js');
+const { normalizeId } = require('../utils/general.js');
+
+/**
+ * @param {Object} this - The OH class object
+ */
+function onConnection(socket) {
+	socket.OH = {
+		id: normalizeId(socket.id),
+		writeAuth: 0
+	};
+	this.clients[socket.OH.id] = socket;
+	console.log(`socket.io user connected [ID: ${socket.id}]`);
+	this.emit('connection', socket);
+	this.io.to(socket.id).emit('create', this.obj);
+}
+function onDisconnection(socket, reason) {
+	delete this.clients[socket.OH.id];
+	console.log(`socket.io user disconnected [ID: ${socket.id}]`);
+	this.emit('disconnection', socket);
+}
 
 module.exports = exports = class Oh extends EventEmitter {
 	constructor(rootPath, server, objBase = {}) {
