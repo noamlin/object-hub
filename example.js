@@ -3,7 +3,7 @@
 const http = require('http');
 const express = require('express');
 const app = express();
-const Oh = require('./oh.js');
+const Oh = require('./index.js');
 
 const server = http.Server(app);
 server.listen(1337);
@@ -19,12 +19,20 @@ app.get('/client/oh.js', (req, res) => {
 });
 
 let infrastructure = {
-	players: {},
-	tableCards: []
+	players: [],
+	table: {
+		flop: [], turn: 0, river: 0
+	},
+	test: {
+		sub: {
+			secret: 1
+		}
+	}
 };
 let permissionsMap = {
-	'main': { read: [0], write: [0] },
-	'main.players': { read: [0], write: [1] }
+	'main': { writeAuth: [0] },
+	'main.players[].money': { writeAuth: [1] },
+	'main.test.sub.secret': { writeAuth: [2] }
 };
 
 var ohMain = new Oh('main', server, infrastructure, permissionsMap);

@@ -3,10 +3,11 @@
 	"version": "0.1.0",
 	"description": "Object Hub for object synchronization between server and clients",
 	"license": "",
-	"main": "oh.js",
+	"main": "index.js",
 	"scripts": {
 		"start": "node index.js",
-		"example": "node example.js"
+		"example": "node example.js",
+		"test": "node test.js"
 	},
 	"dependencies": {
 		"express": "^4.17.1",
