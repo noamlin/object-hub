@@ -4,7 +4,7 @@ const Crypto = require('../utils/simple-cryptography.js');
 
 let testCrypto = new Crypto();
 
-test('generate encryption key 87 chars long', () => {
+test('generate encryption key 91 chars long', () => {
 	expect(typeof testCrypto.getKey()).toBe('string');
 	expect(testCrypto.getKey().length).toBe(91);
 });

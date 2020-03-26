@@ -1,6 +1,6 @@
 "use strict"
 
-function normalizeId(id) {
+function str2VarName(id) {
 	let acceptableChars = {
 		signs: {$:1, _:1},
 		digits: {'1':1,'2':1,'3':1,'4':1,'5':1,'6':1,'7':1,'8':1,'9':1},
@@ -39,6 +39,6 @@ function shuffle(arr) {
 }
 
 module.exports = exports = {
-	normalizeId: normalizeId,
+	str2VarName: str2VarName,
 	shuffle: shuffle
 };

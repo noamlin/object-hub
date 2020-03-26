@@ -12,15 +12,6 @@
 				"<node_internals>/**"
 			],
 			"program": "${workspaceFolder}/example.js"
-		},
-		{
-			"type": "node",
-			"request": "launch",
-			"name": "Launch Test",
-			"skipFiles": [
-				"<node_internals>/**"
-			],
-			"program": "${workspaceFolder}/test.js"
 		}
 	]
 }

@@ -19,7 +19,7 @@ app.get('/client/oh.js', (req, res) => {
 });
 
 let infrastructure = {
-	players: [],
+	players: {},
 	table: {
 		flop: [], turn: 0, river: 0
 	},
@@ -30,15 +30,20 @@ let infrastructure = {
 	}
 };
 let permissionsMap = {
-	'main': { writeAuth: [0] },
-	'main.players[].money': { writeAuth: [1] },
-	'main.test.sub.secret': { writeAuth: [2] }
+	'game': { read: 0, write: 0 },
+	'game.test.sub.secret': { read: 1, write: 1 }
 };
 
-var ohMain = new Oh('main', server, infrastructure, permissionsMap);
-ohMain.on('connection', function(socket) {
-	this.obj.players[socket.OH.id] = socket.id;
+var ohMain = new Oh('game', server, infrastructure, permissionsMap);
+ohMain.on('connection', function(socket, activate) {
+	this.setPermission(`game.players.${socket.OH.id}.secret`, {read: socket.OH.id, write: socket.OH.id});
+	this.game.players[socket.OH.id] = {
+		name: '',
+		age: 0,
+		secret: Math.floor(Math.random()*10000)
+	};
+	activate();
 });
 ohMain.on('disconnection', function(socket) {
-	delete this.obj.players[socket.OH.id];
+	delete this.game.players[socket.OH.id];
 });
