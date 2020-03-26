@@ -35,15 +35,39 @@ let permissionsMap = {
 };
 
 var ohMain = new Oh('game', server, infrastructure, permissionsMap);
-ohMain.on('connection', function(socket, activate) {
-	this.setPermission(`game.players.${socket.OH.id}.secret`, {read: socket.OH.id, write: socket.OH.id});
-	this.game.players[socket.OH.id] = {
+ohMain.on('connection', function(socket) {
+	let id = socket.OH.id;
+	this.setPermission(`game.players.${id}.secret`, {read: id, write: id});
+
+	this.game.players[id] = {
 		name: '',
 		age: 0,
 		secret: Math.floor(Math.random()*10000)
 	};
-	activate();
+
+	socket.on('loginData', (data) => {
+		if(Number.isInteger(data.fakeID)) {
+			socket.OH.setAuth(data.fakeID, data.fakeID);
+		}
+	});
 });
 ohMain.on('disconnection', function(socket) {
 	delete this.game.players[socket.OH.id];
 });
+
+setInterval(() => {
+	if(Number.isInteger(ohMain.game.table.river)) {
+		if(ohMain.game.table.river === 0) ohMain.game.table.river = 1;
+		else if(ohMain.game.table.river === 1) delete ohMain.game.table.river;
+	} else {
+		ohMain.game.table.river = 0;
+	}
+
+	ohMain.game.test.sub.secret++;
+
+	if(ohMain.game.exist) {
+		delete ohMain.game.exist;
+	} else {
+		ohMain.game.exist = true;
+	}
+}, 1000);

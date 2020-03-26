@@ -11,8 +11,13 @@
 	<script src="/client/oh.js"></script>
 	<script>
 window.addEventListener('DOMContentLoaded', (event) => {
-	var ohMain = new Oh('game');
-	var ohMain2 = new Oh('game');
+	var OHs = {};
+	for(let i=0; i<1; i++) {
+		OHs[i] = new Oh('game');
+		OHs[i].socket.on('connect', () => {
+			OHs[i].socket.emit('loginData', {fakeID: i});
+		});
+	}
 });
 	</script>
 </head>

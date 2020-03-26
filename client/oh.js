@@ -8,8 +8,9 @@ class Oh {
 			autoConnect: true
 		});
 
-		this.socket.on('create', (obj) => {
-			this[this.rootPath] = ObservableSlim.create(obj, true, (changes) => {
+		this.socket.on('init', (data) => {
+			console.log(data);
+			this[this.rootPath] = ObservableSlim.create(data.obj, true, (changes) => {
 				//
 			});
 		});

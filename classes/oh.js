@@ -11,21 +11,44 @@ const { str2VarName } = require('../utils/general.js');
 function onConnection(socket) {
 	socket.OH = {
 		id: str2VarName(socket.id),
-		authLevel: 0
+		auth: {read: 0, write: 0},
+		setAuth: setClientAuth.bind(this, socket)
 	};
-	console.log(`socket.io user connected [ID: ${socket.id}]`);
 
-	let activate = () => {
-		this.clients[socket.OH.id] = socket;
-		this.io.to(socket.id).emit('create', this[this.rootPath]);
-	};
-	this.emit('connection', socket, activate);
+	console.log(`socket.io user connected [ID: ${socket.id}]`);
+	this.clients[socket.OH.id] = socket;
+	socket.join('level0'); //join the basic authorization room
+
+	this.emit('connection', socket);
 }
 
 function onDisconnection(socket, reason) {
 	delete this.clients[socket.OH.id];
 	console.log(`socket.io user disconnected [ID: ${socket.id}]`);
 	this.emit('disconnection', socket);
+}
+
+/**
+ * set client's authorization level and update re-assign his rooms
+ * @param {Object} socket 
+ * @param {Number} read 
+ * @param {Number} [write]
+ */
+function setClientAuth(socket, read, write) {
+	if(Number.isInteger(write)) {
+		socket.OH.auth.write = write;
+	}
+
+	if(read > socket.OH.auth.read) {
+		for(let i = socket.OH.auth.read+1; i <= read; i++) {
+			socket.join(`level${i}`);
+		}
+	} else if(read < socket.OH.auth.read) {
+		for(let i = socket.OH.auth.read; i > read; i--) {
+			socket.leave(`level${i}`);
+		}
+	}
+	socket.OH.auth.read = read;
 }
 
 /**
@@ -41,45 +64,43 @@ function onDisconnection(socket, reason) {
  * type: "delete"|"add"|"update"
  */
 function onObjectChange(changes) {
-	for(let i=0; i<changes.length; i++) {
-		delete changes[i].target;
-		delete changes[i].proxy;
-		delete changes[i].jsonPointer;
+	for(let item of changes) {
+		item.path = `${this._rootPath}.${item.currentPath}`;
+		delete item.currentPath;
+		delete item.target;
+		delete item.proxy;
+		delete item.jsonPointer;
 	}
 
-	this.io.emit('objectChange', changes);
+	this._io.emit('objectChange', changes);
 }
 
 module.exports = exports = class Oh extends EventEmitter {
 	constructor(rootPath, server, infrastructure = {}, permissions = {}) {
 		super();
 
-		let reservedVariables = ['rootPath', 'permissions', 'clients', 'io', 'obj'];
+		let reservedVariables = ['_rootPath', '_permissions', 'clients', 'io', 'setPermission'];
 		if(str2VarName(rootPath) !== rootPath) {
 			throw new Error('root path must match a valid object\'s property name');
 		} else if(reservedVariables.indexOf(rootPath) !== -1) {
 			throw new Error('root path is system reserved');
 		}
 
-		this.rootPath = rootPath;
-		this.permissions = permissions;
+		this._rootPath = rootPath;
+		this._permissions = permissions;
 		this.clients = {};
-		this.io = socketio(server).of(`/object-hub/${rootPath}`);
+		this._io = socketio(server).of(`/object-hub/${rootPath}`);
 
-		this.io.on('connection', (socket) => {
+		this._io.on('connection', (socket) => {
 			onConnection.call(this, socket);
-		
-			socket.on(rootPath, (data) => {
-				//
-			});
 			
 			socket.on('disconnect', onDisconnection.bind(this, socket));
 		});
 
-		this[this.rootPath] = ObservableSlim.create(infrastructure, true, onObjectChange.bind(this));
+		this[rootPath] = ObservableSlim.create(infrastructure, true, onObjectChange.bind(this));
 	}
 
 	setPermission(path, permission) {
-		this.permissions[path] = permission;
+		this._permissions[path] = permission;
 	}
 };
