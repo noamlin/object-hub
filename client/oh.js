@@ -1,11 +1,12 @@
 "use strict"
 
 class Oh {
-	constructor(rootPath) {
+	constructor(rootPath, clientData) {
 		this.rootPath = rootPath;
 		
 		this.socket = io(`/object-hub/${rootPath}`, {
-			autoConnect: true
+			autoConnect: true,
+			query: clientData
 		});
 
 		this.socket.on('init', (data) => {

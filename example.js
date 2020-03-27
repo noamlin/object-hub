@@ -35,7 +35,7 @@ let permissionsMap = {
 };
 
 var ohMain = new Oh('game', server, infrastructure, permissionsMap);
-ohMain.on('connection', function(socket) {
+ohMain.on('connection', function(socket, clientData) {
 	let id = socket.OH.id;
 	this.setPermission(`game.players.${id}.secret`, {read: id, write: id});
 
@@ -45,11 +45,12 @@ ohMain.on('connection', function(socket) {
 		secret: Math.floor(Math.random()*10000)
 	};
 
-	socket.on('loginData', (data) => {
-		if(Number.isInteger(data.fakeID)) {
-			socket.OH.setAuth(data.fakeID, data.fakeID);
+	if(!isNaN(clientData.fakeID)) {
+		let fakeID = parseInt(clientData.fakeID);
+		if(fakeID > 0) {
+			socket.OH.setAuth(fakeID, fakeID);
 		}
-	});
+	}
 });
 ohMain.on('disconnection', function(socket) {
 	delete this.game.players[socket.OH.id];

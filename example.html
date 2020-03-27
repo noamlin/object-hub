@@ -12,11 +12,8 @@
 	<script>
 window.addEventListener('DOMContentLoaded', (event) => {
 	var OHs = {};
-	for(let i=0; i<1; i++) {
-		OHs[i] = new Oh('game');
-		OHs[i].socket.on('connect', () => {
-			OHs[i].socket.emit('loginData', {fakeID: i});
-		});
+	for(let i=0; i<3; i++) {
+		OHs[i] = new Oh('game', {fakeID: i});
 	}
 });
 	</script>

@@ -19,7 +19,7 @@ function onConnection(socket) {
 	this.clients[socket.OH.id] = socket;
 	socket.join('level0'); //join the basic authorization room
 
-	this.emit('connection', socket);
+	this.emit('connection', socket, socket.handshake.query);
 }
 
 function onDisconnection(socket, reason) {
