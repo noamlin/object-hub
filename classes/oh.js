@@ -4,6 +4,20 @@ const EventEmitter = require('events');
 const socketio = require('socket.io');
 const ObservableSlim = require('observable-slim');
 const { str2VarName } = require('../utils/general.js');
+const { cloneDeep } = require('lodash');
+
+/**
+ * prepare the object to send to the client by deleting the properties the client is unauthorized to view
+ * @param {Object} obj 
+ * @param {Object} permissions 
+ * @param {Number} clientReadAuth 
+ */
+function prepareObjectForClient(obj, permissions, clientReadAuth) {
+	obj = cloneDeep(obj);
+	delete obj.__getTarget;
+	let props = Object.getOwnPropertyNames(obj);
+	return obj;
+}
 
 /**
  * @param {Object} this - The OH class object
@@ -11,15 +25,22 @@ const { str2VarName } = require('../utils/general.js');
 function onConnection(socket) {
 	socket.OH = {
 		id: str2VarName(socket.id),
-		auth: {read: 0, write: 0},
+		auth: {read: {}, write: {}},
 		setAuth: setClientAuth.bind(this, socket)
 	};
 
 	console.log(`socket.io user connected [ID: ${socket.id}]`);
 	this.clients[socket.OH.id] = socket;
-	socket.join('level0'); //join the basic authorization room
 
-	this.emit('connection', socket, socket.handshake.query);
+	let data = {};
+	data[this._rootPath] = prepareObjectForClient(this[this._rootPath].__getTarget, this._permissions, socket.OH.auth.read);
+	//MUST BE CALLED. this inits the whole data transmitting to the user
+	let init = () => {
+		this._io.to(socket.id).emit('init', data);
+		socket.join('level0'); //join the basic authorization room
+	};
+
+	this.emit('connection', socket, socket.handshake.query, init);
 }
 
 function onDisconnection(socket, reason) {
@@ -31,24 +52,45 @@ function onDisconnection(socket, reason) {
 /**
  * set client's authorization level and update re-assign his rooms
  * @param {Object} socket 
- * @param {Number} read 
- * @param {Number} [write]
+ * @param {Number} reads
+ * @param {Number} [writes]
  */
-function setClientAuth(socket, read, write) {
-	if(Number.isInteger(write)) {
-		socket.OH.auth.write = write;
+function setClientAuth(socket, reads, writes) {
+	//handle write
+	if(typeof writes !== 'undefined') {
+		if(Number.isInteger(writes)) {
+			writes = [writes];
+		}
+		socket.OH.auth.write = {};
+		for(let item of writes) {
+			socket.OH.auth.write[item] = true; //always use hashmap
+		}
 	}
 
-	if(read > socket.OH.auth.read) {
-		for(let i = socket.OH.auth.read+1; i <= read; i++) {
-			socket.join(`level${i}`);
-		}
-	} else if(read < socket.OH.auth.read) {
-		for(let i = socket.OH.auth.read; i > read; i--) {
-			socket.leave(`level${i}`);
+	//handle read
+	if(Number.isInteger(reads)) {
+		reads = [reads];
+	}
+	let newReads = {};
+	for(let item of reads) {
+		newReads[item] = true; //always use hashmap
+	}
+
+	let oldReadKeys = Object.getOwnPropertyNames(socket.OH.auth.read);
+	let newReadKeys = Object.getOwnPropertyNames(newReads);
+
+	for(let authNum of newReadKeys) {
+		if(!socket.OH.auth.read[authNum]) { //new inserted auth number didn't exist before
+			socket.join(`level${authNum}`);
 		}
 	}
-	socket.OH.auth.read = read;
+	for(let authNum of oldReadKeys) {
+		if(!newReads[authNum]) { //old auth number that is about to be removed
+			socket.leave(`level${authNum}`);
+		}
+	}
+
+	socket.OH.auth.read = newReads;
 }
 
 /**
@@ -72,7 +114,7 @@ function onObjectChange(changes) {
 		delete item.jsonPointer;
 	}
 
-	this._io.emit('objectChange', changes);
+	this._io.emit('change', changes);
 }
 
 module.exports = exports = class Oh extends EventEmitter {

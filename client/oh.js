@@ -2,7 +2,7 @@
 
 class Oh {
 	constructor(rootPath, clientData) {
-		this.rootPath = rootPath;
+		this._rootPath = rootPath;
 		
 		this.socket = io(`/object-hub/${rootPath}`, {
 			autoConnect: true,
@@ -10,14 +10,16 @@ class Oh {
 		});
 
 		this.socket.on('init', (data) => {
-			console.log(data);
-			this[this.rootPath] = ObservableSlim.create(data.obj, true, (changes) => {
-				//
-			});
+			console.log('init', data);
+			if(data[this._rootPath]) {
+				this[this._rootPath] = ObservableSlim.create(data[this._rootPath], true, (changes) => {
+					//
+				});
+			}
 		});
 
-		this.socket.on('objectChange', (changes) => {
-			console.log(changes);
+		this.socket.on('change', (changes) => {
+			console.log(changes[0].type, changes);
 		});
 	}
 };

@@ -27,15 +27,21 @@ let infrastructure = {
 		sub: {
 			secret: 1
 		}
+	},
+	someObj: {
+		someArray: [1, 2, {topSecret: 'a'}, 3, 4, {topSecret: 'b'}]
 	}
 };
 let permissionsMap = {
 	'game': { read: 0, write: 0 },
-	'game.test.sub.secret': { read: 1, write: 1 }
+	'game.test.sub.secret': { read: 1, write: 1 },
+	'game.someObj.someArray': { read: 1, write: 0 },
+	'game.someObj.someArray[].topSecret': { read: 2, write: 0 }
 };
 
 var ohMain = new Oh('game', server, infrastructure, permissionsMap);
-ohMain.on('connection', function(socket, clientData) {
+
+ohMain.on('connection', function(socket, clientData, init) {
 	let id = socket.OH.id;
 	this.setPermission(`game.players.${id}.secret`, {read: id, write: id});
 
@@ -51,11 +57,21 @@ ohMain.on('connection', function(socket, clientData) {
 			socket.OH.setAuth(fakeID, fakeID);
 		}
 	}
+
+	init();
 });
 ohMain.on('disconnection', function(socket) {
 	delete this.game.players[socket.OH.id];
 });
 
+setInterval(() => {
+	ohMain.game.test.sub.secret++;
+	switch(ohMain.game.someObj.someArray[2].topSecret) {
+		case 'a': ohMain.game.someObj.someArray[2].topSecret = 'b'; break;
+		case 'b': ohMain.game.someObj.someArray[2].topSecret = 'c'; break;
+		default: ohMain.game.someObj.someArray[2].topSecret = 'a';
+	}
+}, 2000);
 setInterval(() => {
 	if(Number.isInteger(ohMain.game.table.river)) {
 		if(ohMain.game.table.river === 0) ohMain.game.table.river = 1;
@@ -63,12 +79,11 @@ setInterval(() => {
 	} else {
 		ohMain.game.table.river = 0;
 	}
-
-	ohMain.game.test.sub.secret++;
-
+}, 3000);
+setInterval(() => {
 	if(ohMain.game.exist) {
 		delete ohMain.game.exist;
 	} else {
 		ohMain.game.exist = true;
 	}
-}, 1000);
+}, 4000);
