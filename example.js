@@ -6,7 +6,7 @@ const app = express();
 const Oh = require('./index.js');
 const { isNumeric } = require('./utils/general.js');
 
-const server = http.Server(app);
+const server = http.createServer(app);
 server.listen(1337);
 
 app.get('/', (req, res) => {
