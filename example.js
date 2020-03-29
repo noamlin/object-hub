@@ -4,6 +4,7 @@ const http = require('http');
 const express = require('express');
 const app = express();
 const Oh = require('./index.js');
+const { isNumeric } = require('./utils/general.js');
 
 const server = http.Server(app);
 server.listen(1337);
@@ -25,25 +26,28 @@ let infrastructure = {
 	},
 	test: {
 		sub: {
-			secret: 1
+			secret: 'first can see',
+			secret2: 'second can see',
+			secret3: 'all privileged can see'
 		}
 	},
 	someObj: {
 		someArray: [1, 2, {topSecret: 'a'}, 3, 4, {topSecret: 'b'}]
 	}
 };
-let permissionsMap = {
-	'game': { read: 0, write: 0 },
-	'game.test.sub.secret': { read: 1, write: 1 },
-	'game.someObj.someArray': { read: 1, write: 0 },
-	'game.someObj.someArray[].topSecret': { read: 2, write: 0 }
-};
 
-var ohMain = new Oh('game', server, infrastructure, permissionsMap);
+var ohMain = new Oh('game', server, infrastructure);
+
+ohMain.setPermission('game', 0, 0);
+ohMain.setPermission('game.test.sub.secret', 1, 1);
+ohMain.setPermission('game.test.sub.secret2', 1, 2);
+ohMain.setPermission('game.test.sub.secret3', [1,2,3], [1,2,3]);
+ohMain.setPermission('game.someObj.someArray', 0, [1,2]);
+ohMain.setPermission('game.someObj.someArray.#.topSecret', 0, 2);
 
 ohMain.on('connection', function(socket, clientData, init) {
 	let id = socket.OH.id;
-	this.setPermission(`game.players.${id}.secret`, {read: id, write: id});
+	this.setPermission(`game.players.${id}.secret`, id, id);
 
 	this.game.players[id] = {
 		name: '',
@@ -51,11 +55,9 @@ ohMain.on('connection', function(socket, clientData, init) {
 		secret: Math.floor(Math.random()*10000)
 	};
 
-	if(!isNaN(clientData.fakeID)) {
-		let fakeID = parseInt(clientData.fakeID);
-		if(fakeID > 0) {
-			socket.OH.setAuth(fakeID, fakeID);
-		}
+	if(isNumeric(clientData.level)) {
+		let clientLevel = parseInt(clientData.level);
+		this.setClientPermissions(socket, clientLevel, clientLevel);
 	}
 
 	init();
@@ -65,7 +67,6 @@ ohMain.on('disconnection', function(socket) {
 });
 
 setInterval(() => {
-	ohMain.game.test.sub.secret++;
 	switch(ohMain.game.someObj.someArray[2].topSecret) {
 		case 'a': ohMain.game.someObj.someArray[2].topSecret = 'b'; break;
 		case 'b': ohMain.game.someObj.someArray[2].topSecret = 'c'; break;
