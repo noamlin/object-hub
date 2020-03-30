@@ -1,7 +1,7 @@
 "use strict"
 
 const { cloneDeep } = require('lodash');
-const { realtypeof, isNumeric } = require('../../utils/general.js');
+const { realtypeof } = require('../../utils/general.js');
 
 /**
  * prepare the object to send to the client by deleting the properties the client is unauthorized to view
@@ -14,7 +14,6 @@ function prepareObjectForClient(clientReadPermissions) {
 	obj[this._rootPath] = cloneDeep(this[this._rootPath].__getTarget);
 	delete obj[this._rootPath].__getTarget;
 
-	let path = this._rootPath;
 	iterateClear(obj, '', this._permissions, clientReadPermissions);
 	return obj;
 }

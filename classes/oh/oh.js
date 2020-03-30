@@ -68,47 +68,48 @@ module.exports = exports = class Oh extends EventEmitter {
 	 * @param {Number} writes
 	 * @param {Number} [reads]
 	 */
-	setClientPermissions(socket, writes, reads) {
+	setClientPermissions(socket, newWrites, newReads) {
 		//handle write
 		socket.OH.permissions.writes = {};
 		socket.OH.permissions.writes[ socket.OH.id ] = true; //client id
-		if(Array.isArray(writes)) {
-			for(let write of writes) {
+		if(Array.isArray(newWrites)) {
+			for(let write of newWrites) {
 				socket.OH.permissions.writes[ write ] = true;
 			}
 		} else {
-			socket.OH.permissions.writes[ writes ] = true;
+			socket.OH.permissions.writes[ newWrites ] = true;
 		}
 	
 		//handle read
 		let oldReads = socket.OH.permissions.reads;
 		socket.OH.permissions.reads = {};
 		socket.OH.permissions.reads[ socket.OH.id ] = true; //client id
-		let readsType = realtypeof(reads);
+		let readsType = realtypeof(newReads);
 		if(readsType !== 'Undefined' && readsType !== 'Null') {
 			if(readsType === 'Array') {
-				for(let read of reads) {
+				for(let read of newReads) {
 					socket.OH.permissions.reads[ read ] = true;
 				}
 			} else {
-				socket.OH.permissions.reads[ reads ] = true;
+				socket.OH.permissions.reads[ newReads ] = true;
 			}
 		}
 
 		let oldReadsType = realtypeof(oldReads);
-		if(oldReadsType !== 'Undefined' && oldReadsType !== 'Null') {
-			let oldReadKeys = Object.keys(oldReads);
-			for(let read of oldReadKeys) {
-				if(!socket.OH.permissions.reads[ read ]) { //doesn't exist anymore
-					socket.leave(`level${read}`);
-				}
+		if(oldReadsType === 'Undefined' || oldReadsType === 'Null') {
+			oldReads = {};
+		}
+		let oldReadKeys = Object.keys(oldReads);
+		for(let read of oldReadKeys) {
+			if(!socket.OH.permissions.reads[ read ]) { //doesn't exist anymore
+				socket.leave(`level_${read}`);
 			}
+		}
 
-			let newReadKeys = Object.keys(socket.OH.permissions.reads);
-			for(let read of newReadKeys) {
-				if(!oldReads[ read ]) { //a completely new reading permission
-					socket.join(`level${read}`);
-				}
+		let newReadKeys = Object.keys(socket.OH.permissions.reads);
+		for(let read of newReadKeys) {
+			if(!oldReads[ read ]) { //a completely new reading permission
+				socket.join(`level_${read}`);
 			}
 		}
 	}
