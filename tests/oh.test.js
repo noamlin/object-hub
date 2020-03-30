@@ -1,8 +1,6 @@
 "use strict"
 
 const Oh = require('../classes/oh/oh.js');
-const http = require('http');
-const server = http.createServer();
 const { prepareObjectForClient } = require('../classes/oh/object-manipulations.js');
 
 var infrastructure = {
@@ -22,18 +20,34 @@ var infrastructure = {
 		6, 7
 	]
 };
-var testOH = new Oh('root', server, infrastructure);
 
-test('check OH instance methods', () => {
+test('destroy an OH instance', () => {
+	let testOH = new Oh('root', undefined, infrastructure);
+		testOH.destroy(() => {
+			expect(typeof testOH.clients).toBe('undefined');
+			expect(typeof testOH.setPermission).toBe('undefined');
+			expect(typeof testOH.setClientPermissions).toBe('undefined');
+			expect(typeof testOH._io).toBe('undefined');
+		});
+});
+/*
+test('instantiate OH', () => {
+	//let testOH = new Oh('root', server, infrastructure);
+	expect(typeof testOH.clients).toBe('object');
 	expect(typeof testOH.setPermission).toBe('function');
 	expect(typeof testOH.setClientPermissions).toBe('function');
 });
 
 test('check permissions creation', () => {
-	let expectedPermissions = { 'root.a_number': { writes: { '0':true }, reads: { '0':true } } };
+	let expectedPermissions = { 'root.a_number': { writes: {}, reads: {} } };
 	testOH.setPermission('root.a_number', 0, 0);
 	expect(testOH._permissions).toEqual(expectedPermissions);
 
+	expectedPermissions['root.nested1.nested2.nested3'] = { writes: { '3':true, '4':true, '5':true }, reads: { '6':true, '7':true , '8':true } };
+	testOH.setPermission('root.nested1.nested2.nested3', [0,3,4,5], [0,6,7,8]);
+	expect(testOH._permissions).toEqual(expectedPermissions);
+
+	//overwriting an existing permission
 	expectedPermissions['root.nested1.nested2.nested3'] = { writes: { '1':true }, reads: { '2':true, '3':true } };
 	testOH.setPermission('root.nested1.nested2.nested3', 1, [2,3]);
 	expect(testOH._permissions).toEqual(expectedPermissions);
@@ -42,11 +56,11 @@ test('check permissions creation', () => {
 	testOH.setPermission('root.nested1.nested2_alt.#.1', 1, 1);
 	expect(testOH._permissions).toEqual(expectedPermissions);
 
-	expectedPermissions['root.an_arr.#.nestedArr'] = { writes: { '0':true }, reads: { '2':true } };
+	expectedPermissions['root.an_arr.#.nestedArr'] = { writes: {}, reads: { '2':true } };
 	testOH.setPermission('root.an_arr.#.nestedArr', 0, 2);
 	expect(testOH._permissions).toEqual(expectedPermissions);
 
-	expectedPermissions['root.an_arr.5.nestedArr'] = { writes: { '0':true }, reads: { '3':true } };
+	expectedPermissions['root.an_arr.5.nestedArr'] = { writes: {}, reads: { '3':true } };
 	testOH.setPermission('root.an_arr.5.nestedArr', 0, 3);
 	expect(testOH._permissions).toEqual(expectedPermissions);
 });
@@ -83,15 +97,27 @@ test('check client permissions creation', () => {
 	});
 	expect(rooms).toEqual({ 'level_some_id':'some_id', 'level_2': 'some_id', 'level_3': 'some_id', 'level_myStr': 'some_id' });
 
-	testOH.setClientPermissions(mockSocket, 0);
+	testOH.setClientPermissions(mockSocket, 0); //omitting reads
 	expect(mockSocket.OH.permissions).toEqual({
-		writes: { 'some_id':true, '0':true },
+		writes: { 'some_id':true },
+		reads: { 'some_id':true }
+	});
+	expect(rooms).toEqual({ 'level_some_id':'some_id' });
+
+	testOH.setClientPermissions(mockSocket, 0, 0); //reads as 0
+	expect(mockSocket.OH.permissions).toEqual({
+		writes: { 'some_id':true },
 		reads: { 'some_id':true }
 	});
 	expect(rooms).toEqual({ 'level_some_id':'some_id' });
 });
 
 test('create object for client', () => {
-	let obj = prepareObjectForClient.call(testOH, { 'some_id':true });
-	//expect(obj).toEqual(infrastructure);
-});
+	testOH.setClientPermissions(mockSocket, 0);
+	let obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
+	expect(obj).toEqual({
+		root: {
+			a_number
+		}
+	});
+});*/

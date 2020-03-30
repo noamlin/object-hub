@@ -33,7 +33,7 @@ function onConnection(socket) {
 function onDisconnection(socket, reason) {
 	delete this.clients[socket.OH.id];
 	console.log(`socket.io user disconnected [ID: ${socket.id}]`);
-	this.emit('disconnection', socket);
+	this.emit('disconnection', socket, reason);
 }
 
 /**

@@ -2,15 +2,16 @@
 
 const EventEmitter = require('events');
 const socketio = require('socket.io');
-const ObservableSlim = require('observable-slim');
+const ObservableSlim = require('/var/www/observable-slim/');
 const handlers = require('./handlers.js');
 const { realtypeof, str2VarName } = require('../../utils/general.js');
+
+var reservedVariables = ['_rootPath', '_permissions', '_io', 'clients', 'setPermission', 'setClientPermissions', 'destroy'];
 
 module.exports = exports = class Oh extends EventEmitter {
 	constructor(rootPath, server, infrastructure = {}) {
 		super();
 
-		let reservedVariables = ['_rootPath', '_permissions', 'clients', 'io', 'setPermission'];
 		if(str2VarName(rootPath) !== rootPath) {
 			throw new Error('root path must match a valid object\'s property name');
 		} else if(reservedVariables.indexOf(rootPath) !== -1) {
@@ -43,22 +44,22 @@ module.exports = exports = class Oh extends EventEmitter {
 			writes: {}
 		};
 
-		if(Array.isArray(writes)) {
-			for(let write of writes) {
+		if(!Array.isArray(writes)) {
+			writes = [writes];
+		}
+		for(let write of writes) {
+			if(write !== 0 && write !== '0') {
 				this._permissions[path].writes[ write ] = true;
 			}
 		}
-		else {
-			this._permissions[path].writes[ writes ] = true;
-		}
 
-		if(Array.isArray(reads)) {
-			for(let read of reads) {
+		if(!Array.isArray(reads)) {
+			reads = [reads];
+		}
+		for(let read of reads) {
+			if(read !== 0 && read !== '0') {
 				this._permissions[path].reads[ read ] = true;
 			}
-		}
-		else {
-			this._permissions[path].reads[ reads ] = true;
 		}
 	}
 
@@ -72,12 +73,13 @@ module.exports = exports = class Oh extends EventEmitter {
 		//handle write
 		socket.OH.permissions.writes = {};
 		socket.OH.permissions.writes[ socket.OH.id ] = true; //client id
-		if(Array.isArray(newWrites)) {
-			for(let write of newWrites) {
+		if(!Array.isArray(newWrites)) {
+			newWrites = [newWrites];
+		}
+		for(let write of newWrites) {
+			if(write !== 0 && write !== '0') {
 				socket.OH.permissions.writes[ write ] = true;
 			}
-		} else {
-			socket.OH.permissions.writes[ newWrites ] = true;
 		}
 	
 		//handle read
@@ -86,12 +88,13 @@ module.exports = exports = class Oh extends EventEmitter {
 		socket.OH.permissions.reads[ socket.OH.id ] = true; //client id
 		let readsType = realtypeof(newReads);
 		if(readsType !== 'Undefined' && readsType !== 'Null') {
-			if(readsType === 'Array') {
-				for(let read of newReads) {
+			if(readsType !== 'Array') {
+				newReads = [newReads];
+			}
+			for(let read of newReads) {
+				if(read !== 0 && read !== '0') {
 					socket.OH.permissions.reads[ read ] = true;
 				}
-			} else {
-				socket.OH.permissions.reads[ newReads ] = true;
 			}
 		}
 
@@ -112,5 +115,35 @@ module.exports = exports = class Oh extends EventEmitter {
 				socket.join(`level_${read}`);
 			}
 		}
+	}
+
+	/**
+	 * destroy the instance and the connections
+	 * @param {Function} [cb] - a callback function
+	 */
+	destroy(cb) {
+		let originalObj = this[this._rootPath].__getTarget;
+		setImmediate(() => {
+			//first disconnect all clients and trigger all 'disconnection' events which might still be using the proxy object
+			let socketsKeys = Object.keys(this._io.connected);
+			for(let key of socketsKeys) {
+				this._io.connected[key].disconnect(true);
+			}
+			this._io.removeAllListeners('connection');
+
+			setImmediate(() => {
+				ObservableSlim.remove(this[this._rootPath]);
+
+				setImmediate(() => {
+					for(let item of reservedVariables) {
+						delete this[item];
+					}
+
+					if(typeof cb === 'function') {
+						cb( originalObj );
+					}
+				});
+			});
+		});
 	}
 };

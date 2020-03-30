@@ -13,7 +13,7 @@ app.get('/', (req, res) => {
 	res.sendFile(__dirname + '/example.html');
 });
 app.get('/observable-slim.js', (req, res) => {
-	res.sendFile(__dirname + '/node_modules/observable-slim/observable-slim.js');
+	res.sendFile('/var/www/observable-slim/observable-slim.js', { root: '/' });
 });
 app.get('/client/oh.js', (req, res) => {
 	res.sendFile(__dirname + '/client/oh.js');
@@ -37,6 +37,13 @@ let infrastructure = {
 };
 
 var ohMain = new Oh('game', server, infrastructure);
+
+setTimeout(() => {
+	ohMain.destroy((rawObject) => {
+		ohMain.game = rawObject;
+		console.log('DESTROYED');
+	});
+}, 2500);
 
 ohMain.setPermission('game', 0, 0);
 ohMain.setPermission('game.test.sub.secret', 1, 1);
@@ -62,29 +69,36 @@ ohMain.on('connection', function(socket, clientData, init) {
 
 	init();
 });
-ohMain.on('disconnection', function(socket) {
+ohMain.on('disconnection', function(socket, reason) {
 	delete this.game.players[socket.OH.id];
 });
 
+var loopCount = 0;
 setInterval(() => {
-	switch(ohMain.game.someObj.someArray[2].topSecret) {
-		case 'a': ohMain.game.someObj.someArray[2].topSecret = 'b'; break;
-		case 'b': ohMain.game.someObj.someArray[2].topSecret = 'c'; break;
-		default: ohMain.game.someObj.someArray[2].topSecret = 'a';
+	switch(loopCount) {
+		case 0:
+			switch(ohMain.game.someObj.someArray[2].topSecret) {
+				case 'a': ohMain.game.someObj.someArray[2].topSecret = 'b'; break;
+				case 'b': ohMain.game.someObj.someArray[2].topSecret = 'c'; break;
+				default: ohMain.game.someObj.someArray[2].topSecret = 'a';
+			}
+			break;
+		case 1:
+			if(Number.isInteger(ohMain.game.table.river)) {
+				if(ohMain.game.table.river === 0) ohMain.game.table.river = 1;
+				else if(ohMain.game.table.river === 1) delete ohMain.game.table.river;
+			} else {
+				ohMain.game.table.river = 0;
+			}
+			break;
+		case 2:
+			if(ohMain.game.exist) {
+				delete ohMain.game.exist;
+			} else {
+				ohMain.game.exist = true;
+			}
 	}
-}, 2000);
-setInterval(() => {
-	if(Number.isInteger(ohMain.game.table.river)) {
-		if(ohMain.game.table.river === 0) ohMain.game.table.river = 1;
-		else if(ohMain.game.table.river === 1) delete ohMain.game.table.river;
-	} else {
-		ohMain.game.table.river = 0;
-	}
-}, 3000);
-setInterval(() => {
-	if(ohMain.game.exist) {
-		delete ohMain.game.exist;
-	} else {
-		ohMain.game.exist = true;
-	}
-}, 4000);
+	
+	loopCount++;
+	if(loopCount > 2) loopCount = 0;
+}, 1000);
