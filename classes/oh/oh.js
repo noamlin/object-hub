@@ -6,7 +6,7 @@ const ObservableSlim = require('/var/www/observable-slim/');
 const handlers = require('./handlers.js');
 const { realtypeof, str2VarName } = require('../../utils/general.js');
 
-var reservedVariables = ['_rootPath', '_permissions', '_io', 'clients', 'setPermission', 'setClientPermissions', 'destroy'];
+var reservedVariables = ['__rootPath', '__permissions', '__io', 'clients', 'setPermission', 'setClientPermissions', 'destroy'];
 
 module.exports = exports = class Oh extends EventEmitter {
 	constructor(rootPath, server, infrastructure = {}) {
@@ -18,12 +18,12 @@ module.exports = exports = class Oh extends EventEmitter {
 			throw new Error('root path is system reserved');
 		}
 
-		this._rootPath = rootPath;
-		this._permissions = {};
+		this.__rootPath = rootPath;
+		this.__permissions = {};
 		this.clients = {};
-		this._io = socketio(server).of(`/object-hub/${rootPath}`);
+		this.__io = socketio(server).of(`/object-hub/${rootPath}`);
 
-		this._io.on('connection', (socket) => {
+		this.__io.on('connection', (socket) => {
 			handlers.onConnection.call(this, socket);
 			
 			socket.on('disconnect', handlers.onDisconnection.bind(this, socket));
@@ -39,17 +39,28 @@ module.exports = exports = class Oh extends EventEmitter {
 	 * @param {Array|Number|String} [reads] - reading permissions 
 	 */
 	setPermission(path, writes, reads=0) {
-		this._permissions[path] = {
-			reads: {},
-			writes: {}
-		};
+		//check if path (or some of it) is inside an array
+		//let hasDigitsRegexp = new RegExp(/\.\d+(\.|$)/);
+		//if(hasDigitsRegexp.test(path)) {
+		let parts = path.split('.'); //root.sub.1.alt.2 --> [root,sub,1,alt,2]
+		let part;
+		let pathObj = this.__permissions;
+		for(part of parts) {
+			if(typeof pathObj[part] !== 'object') {
+				pathObj[part] = {};
+			}
+			pathObj = pathObj[part];
+		}
+		
+		pathObj.__reads = {};
+		pathObj.__writes = {};
 
 		if(!Array.isArray(writes)) {
 			writes = [writes];
 		}
 		for(let write of writes) {
 			if(write !== 0 && write !== '0') {
-				this._permissions[path].writes[ write ] = true;
+				pathObj.__writes[ write ] = true;
 			}
 		}
 
@@ -58,7 +69,7 @@ module.exports = exports = class Oh extends EventEmitter {
 		}
 		for(let read of reads) {
 			if(read !== 0 && read !== '0') {
-				this._permissions[path].reads[ read ] = true;
+				pathObj.__reads[ read ] = true;
 			}
 		}
 	}
@@ -122,19 +133,20 @@ module.exports = exports = class Oh extends EventEmitter {
 	 * @param {Function} [cb] - a callback function
 	 */
 	destroy(cb) {
-		let originalObj = this[this._rootPath].__getTarget;
+		let originalObj = this[this.__rootPath].__getTarget;
 		setImmediate(() => {
 			//first disconnect all clients and trigger all 'disconnection' events which might still be using the proxy object
-			let socketsKeys = Object.keys(this._io.connected);
+			let socketsKeys = Object.keys(this.__io.connected);
 			for(let key of socketsKeys) {
-				this._io.connected[key].disconnect(true);
+				this.__io.connected[key].disconnect(true);
 			}
-			this._io.removeAllListeners('connection');
+			this.__io.removeAllListeners('connection');
 
 			setImmediate(() => {
-				ObservableSlim.remove(this[this._rootPath]);
+				ObservableSlim.remove(this[this.__rootPath]);
 
 				setImmediate(() => {
+					delete this[this.__rootPath];
 					for(let item of reservedVariables) {
 						delete this[item];
 					}

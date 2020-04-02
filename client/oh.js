@@ -2,7 +2,7 @@
 
 class Oh {
 	constructor(rootPath, clientData) {
-		this._rootPath = rootPath;
+		this.__rootPath = rootPath;
 		this.id;
 		
 		this.socket = io(`/object-hub/${rootPath}`, {
@@ -13,8 +13,8 @@ class Oh {
 		this.socket.on('init', (data) => {
 			console.log('init', data.reads, data.obj);
 			this.id = data.id;
-			/*if(data.obj && data.obj[this._rootPath]) {
-				this[this._rootPath] = ObservableSlim.create(data.obj[this._rootPath], true, (changes) => {
+			/*if(data.obj && data.obj[this.__rootPath]) {
+				this[this.__rootPath] = ObservableSlim.create(data.obj[this.__rootPath], true, (changes) => {
 					//
 				});
 			}*/

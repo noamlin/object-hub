@@ -23,7 +23,7 @@ function onConnection(socket) {
 			id: socket.OH.id,
 			reads: socket.OH.permissions.reads
 		};
-		this._io.to(socket.id).emit('init', data);
+		this.__io.to(socket.id).emit('init', data);
 		socket.join('level0'); //join the basic permitted room
 	};
 
@@ -50,14 +50,14 @@ function onDisconnection(socket, reason) {
  */
 function onObjectChange(changes) {
 	for(let item of changes) {
-		item.path = `${this._rootPath}.${item.currentPath}`;
+		item.path = `${this.__rootPath}.${item.currentPath}`;
 		delete item.currentPath;
 		delete item.target;
 		delete item.proxy;
 		delete item.jsonPointer;
 	}
 
-	this._io.emit('change', changes);
+	this.__io.emit('change', changes);
 }
 
 module.exports = exports = {

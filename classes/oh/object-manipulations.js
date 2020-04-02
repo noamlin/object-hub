@@ -1,6 +1,6 @@
 "use strict"
 
-const { cloneDeep } = require('lodash');
+const { cloneDeep, merge } = require('lodash');
 const { realtypeof } = require('../../utils/general.js');
 
 /**
@@ -11,60 +11,70 @@ const { realtypeof } = require('../../utils/general.js');
  */
 function prepareObjectForClient(clientReadPermissions) {
 	let obj = {};
-	obj[this._rootPath] = cloneDeep(this[this._rootPath].__getTarget);
-	delete obj[this._rootPath].__getTarget;
+	obj[this.__rootPath] = cloneDeep(this[this.__rootPath].__getTarget);
+	delete obj[this.__rootPath].__getTarget;
 
-	iterateClear(obj, '', this._permissions, clientReadPermissions);
+	iterateClear(obj, this.__permissions, clientReadPermissions);
 	return obj;
 }
 
 /**
  * semi recursively iterates over the original plain object and clears unauthorized properties
  * @param {Object} obj - the original object OR sub-objects
- * @param {String} path - current path in the original object
  * @param {Object} permissions - a permissions map
  * @param {Object} clientReadPermissions - the client's authorization map
  */
-function iterateClear(obj, path, permissions, clientReadPermissions) {
-	let props = Object.keys(obj);
-	for(let prop of props) {
-		let currPath;
-		if(path === '') currPath = prop;
-		else currPath = `${path}.${prop}`;
+function iterateClear(obj, permissions, clientReadPermissions) {
+	let type_of = realtypeof(obj);
 
-		/** if we've hit a path that requires permission */
-		if(permissions[currPath]) {
-			let clientHasPermission = false;
-			let reads = Object.keys(permissions[currPath].reads);
-			for(let read of reads) {
-				if(read === 0 || read === '0') {
-					clientHasPermission = true;
-					break;
-				}
-
-				if(clientReadPermissions[ read ]) { //client has the permission for this category
-					clientHasPermission = true;
-				}
-			}
-
-			if(!clientHasPermission) {
-				delete obj[prop];
-			}
-		}
-
-		/** handle the recursion */
-		let type_of = realtypeof(obj[prop]);
-		if(type_of === 'Object') {
-			iterateClear(obj[prop], currPath, permissions, clientReadPermissions);
-		}
-		else if(type_of === 'Array') {
-			for(let i=0; i < obj[prop].length; i++) {
-				if(realtypeof(obj[prop][i]) === 'Object') {
-					iterateClear(obj[prop][i], `${currPath}.#`, permissions, clientReadPermissions);
+	if(type_of === 'Object') {
+		let props = Object.keys(obj);
+		for(let prop of props) {
+			if(permissions[prop]) { //permissions for this property or sub-properties exists, so a validation is required
+				if(checkPermission(permissions[prop], clientReadPermissions)) {
+					iterateClear(obj[prop], permissions[prop], clientReadPermissions);
+				} else {
+					delete obj[prop];
 				}
 			}
 		}
 	}
+	else if(type_of === 'Array') {
+		let arr = obj;
+
+		for(let i = 0; i < arr.length; i++) {
+			let allPermissions = merge({}, permissions['#'], permissions[i]);
+			if(checkPermission(allPermissions, clientReadPermissions)) {
+				iterateClear(arr[i], allPermissions, clientReadPermissions);
+			} else {
+				delete arr[i];
+			}
+		}
+	}
+}
+
+/**
+ * check for path if client is permitted to read it
+ * @param {Object} permissions
+ * @param {Object} clientReadPermissions
+ */
+function checkPermission(permissions, clientReadPermissions) {
+	if(typeof permissions === 'object' && permissions.__reads) {
+		let reads = Object.keys(permissions.__reads);
+		if(reads.length > 0) { //there is a permission required
+			for(let read of reads) {
+				if(read === 0 || read === '0') {
+					continue;
+				}
+				else if(clientReadPermissions[ read ]) { //client has the permission for this category
+					return true;
+				}
+			}
+			return false; //we matched no permission
+		}
+	}
+
+	return true;
 }
 
 module.exports = exports = {
