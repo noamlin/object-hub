@@ -311,7 +311,7 @@ test('create object for client', (done) => {
 		expect(obj).toEqual({ root: { allCombinations: { obj1: { obj2: { arr1: [0,1,2, [0, [{ obj3: { arr2: [{a:'a',c:'c'}, {a:'x',c:'z'}, {a:'1',c:'3'}] } }], 2] ] } } } } });
 
 		done();
-	}, 20);
+	}, 2500);//waiting more than 2000ms for observable-slim internal timeout for cleaning orphanded proxies
 });
 
 //async
