@@ -88,7 +88,7 @@ setInterval(() => {
 			if(ohMain.game.exist) {
 				delete ohMain.game.exist;
 			} else {
-				ohMain.game.exist = true;
+				ohMain.game.exist = { inner1: { inner2: true } };
 			}
 			break;
 		case 3:
@@ -99,4 +99,4 @@ setInterval(() => {
 	
 	loopCount++;
 	if(loopCount > 3) loopCount = 0;
-}, 1000);
+}, 500);
