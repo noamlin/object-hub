@@ -2,7 +2,7 @@
 
 const EventEmitter = require('events');
 const socketio = require('socket.io');
-const ObservableSlim = require('/var/www/observable-slim/');
+const ObservableSlim = require('observable-slim');
 const handlers = require('./handlers.js');
 const { realtypeof, str2VarName } = require('../../utils/general.js');
 

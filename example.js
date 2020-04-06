@@ -13,7 +13,7 @@ app.get('/', (req, res) => {
 	res.sendFile(__dirname + '/example.html');
 });
 app.get('/observable-slim.js', (req, res) => {
-	res.sendFile('/var/www/observable-slim/observable-slim.js', { root: '/' });
+	res.sendFile(__dirname + '/node_modules/observable-slim/observable-slim.js');
 });
 app.get('/client/oh.js', (req, res) => {
 	res.sendFile(__dirname + '/client/oh.js');
