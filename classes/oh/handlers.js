@@ -1,6 +1,6 @@
 "use strict"
 
-const { str2VarName } = require('../../utils/general.js');
+const { str2VarName, isNumeric } = require('../../utils/general.js');
 const { prepareObjectForClient } = require('./object-manipulations.js');
 
 /**
@@ -24,7 +24,7 @@ function onConnection(socket) {
 			reads: socket.OH.permissions.reads
 		};
 		this.__io.to(socket.id).emit('init', data);
-		socket.join('level0'); //join the basic permitted room
+		socket.join('level_0'); //join the basic permitted room
 	};
 
 	this.emit('connection', socket, socket.handshake.query, init);
@@ -57,7 +57,41 @@ function onObjectChange(changes) {
 		delete item.jsonPointer;
 	}
 
-	this.__io.emit('change', changes);
+	let relatedPermissions = {};
+	iterateCheckPermissions(this.__permissions, changes[0].path.split('.'), relatedPermissions);
+	let permissionsArr = Object.keys(relatedPermissions);
+
+	if(permissionsArr.length === 0 || (permissionsArr.length === 1 && permissionsArr[0] === '0')) {
+		permissionsArr.push('0');
+	}
+
+	for(let permission of permissionsArr) {
+		this.__io.to(`level_${permission}`).emit('change', changes);
+	}
+}
+
+function iterateCheckPermissions(permissions, parts, found) {
+	let part = parts.shift();
+
+	if(isNumeric(part)) {
+		let partsCopy = parts.slice(0);
+
+		if(typeof permissions['#'] === 'object') {
+			if(permissions['#'].__reads) {
+				Object.assign(found, permissions['#'].__reads);
+			}
+	
+			iterateCheckPermissions(permissions['#'], partsCopy, found);
+		}
+	}
+	
+	if(typeof permissions[part] === 'object') {
+		if(permissions[part].__reads) {
+			Object.assign(found, permissions[part].__reads);
+		}
+
+		iterateCheckPermissions(permissions[part], parts, found);
+	}
 }
 
 module.exports = exports = {

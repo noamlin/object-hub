@@ -38,13 +38,6 @@ let infrastructure = {
 
 var ohMain = new Oh('game', server, infrastructure);
 
-setTimeout(() => {
-	ohMain.destroy((rawObject) => {
-		ohMain.game = rawObject;
-		console.log('DESTROYED');
-	});
-}, 2500);
-
 ohMain.setPermission('game', 0, 0);
 ohMain.setPermission('game.test.sub.secret', 1, 1);
 ohMain.setPermission('game.test.sub.secret2', 1, 2);
@@ -97,8 +90,13 @@ setInterval(() => {
 			} else {
 				ohMain.game.exist = true;
 			}
+			break;
+		case 3:
+			if(ohMain.game.test.sub.secret3 === 'all privileged can see') ohMain.game.test.sub.secret3 = 'all privileged got an update';
+			else ohMain.game.test.sub.secret3 = 'all privileged can see';
+			break;
 	}
 	
 	loopCount++;
-	if(loopCount > 2) loopCount = 0;
+	if(loopCount > 3) loopCount = 0;
 }, 1000);
