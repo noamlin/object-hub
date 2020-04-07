@@ -25,8 +25,8 @@ module.exports = exports = class Oh extends EventEmitter {
 
 		this.__io.on('connection', (socket) => {
 			handlers.onConnection.call(this, socket);
-			
 			socket.on('disconnect', handlers.onDisconnection.bind(this, socket));
+			socket.on('change', handlers.onClientObjectChange.bind(this, socket));
 		});
 
 		this[rootPath] = ObservableSlim.create(infrastructure, true, handlers.onObjectChange.bind(this));
