@@ -2,7 +2,7 @@
 
 const Oh = require('../classes/oh/oh.js');
 const { prepareObjectForClient } = require('../classes/oh/object-manipulations.js');
-//const { cloneDeep } = require('lodash');
+const { realtypeof } = require('../utils/general.js');
 
 var infrastructure = {
 	a_number: 1.23,
@@ -27,7 +27,7 @@ var testOH;
 test('instantiate OH', () => {
 	testOH = new Oh('root', undefined, infrastructure);
 
-	expect(typeof testOH.clients).toBe('object');
+	expect(realtypeof(testOH.clients)).toBe('Map');
 	expect(typeof testOH.root).toBe('object');
 	expect(typeof testOH.setPermission).toBe('function');
 	expect(typeof testOH.setClientPermissions).toBe('function');

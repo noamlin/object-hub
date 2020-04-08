@@ -20,7 +20,7 @@ module.exports = exports = class Oh extends EventEmitter {
 
 		this.__rootPath = rootPath;
 		this.__permissions = {};
-		this.clients = {};
+		this.clients = new Map();
 		this.__io = socketio(server).of(`/object-hub/${rootPath}`);
 
 		this.__io.on('connection', (socket) => {

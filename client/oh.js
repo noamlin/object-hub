@@ -39,7 +39,6 @@ class Oh {
 				}
 
 				if(parts.length === 1) { //previous loop finished on time
-
 					switch(change.type) {
 						case 'add':
 						case 'update':
@@ -51,6 +50,10 @@ class Oh {
 					}
 				} else {
 					console.error('couldn\'t loop completely over path', change);
+				}
+
+				if(typeof change.reason === 'string') {
+					console.warn(change.reason);
 				}
 			}
 			
