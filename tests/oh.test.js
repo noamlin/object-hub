@@ -22,6 +22,32 @@ var infrastructure = {
 	]
 };
 
+var rooms = {};
+
+class MockSocket {
+	constructor() {
+		this.OH = {
+			id: 'id' + Math.floor(Math.random()*10000),
+			permissions: {}
+		}
+	}
+	join(name) {
+		if(!rooms[name]) {
+			rooms[name] = {};
+		}
+		rooms[name][this.OH.id] = true;
+	}
+	leave(name) {
+		delete rooms[name][this.OH.id];
+	}
+};
+
+var mockIO = {
+	to: function() {},
+	on: function() {},
+	emit: function() {}
+};
+
 var testOH;
 
 test('instantiate OH', () => {
@@ -64,51 +90,64 @@ test('check permissions creation', () => {
 	expect(testOH.__permissions).toEqual(expectedPermissions);
 });
 
-var rooms = {};
-var mockSocket = {
-	join: function(name) { rooms[name] = this.OH.id; },
-	leave: function(name) { delete rooms[name]; },
-	OH: {
-		id: 'some_id',
-		permissions: {}
-	}
-};
-
 test('check client permissions creation', () => {
+	let mockSocket = new MockSocket();
+	let id = mockSocket.OH.id;
+
 	testOH.setClientPermissions(mockSocket, 1, 1);
-	expect(mockSocket.OH.permissions).toEqual({
-		writes: { 'some_id':true, '1':true },
-		reads: { 'some_id':true, '1':true }
-	});
-	expect(rooms).toEqual({ 'level_some_id':'some_id', 'level_1':'some_id' });
+	let shouldEqual = { writes: { '1':true }, reads: { '1':true } };
+	shouldEqual.writes[id] = true;
+	shouldEqual.reads[id] = true;
+	expect(mockSocket.OH.permissions).toEqual(shouldEqual);
+
+	shouldEqual = { level_1: {} };
+	shouldEqual['level_'+id] = {};
+	shouldEqual['level_'+id][id] = shouldEqual.level_1[id] = true;
+	expect(rooms).toEqual(shouldEqual);
 
 	testOH.setClientPermissions(mockSocket, [1,2]);
-	expect(mockSocket.OH.permissions).toEqual({
-		writes: { 'some_id':true, '1':true, '2':true },
-		reads: { 'some_id':true }
-	});
-	expect(rooms).toEqual({ 'level_some_id':'some_id' });
+	shouldEqual = { writes: { '1':true, '2':true }, reads: {} };
+	shouldEqual.writes[id] = true;
+	shouldEqual.reads[id] = true;
+	expect(mockSocket.OH.permissions).toEqual(shouldEqual);
+
+	shouldEqual = { level_1: {} }; //should be left an empty room since last test
+	shouldEqual['level_'+id] = {};
+	shouldEqual['level_'+id][id] = true;
+	expect(rooms).toEqual(shouldEqual);
 
 	testOH.setClientPermissions(mockSocket, 'abc', [2,3,'myStr']);
-	expect(mockSocket.OH.permissions).toEqual({
-		writes: { 'some_id':true, 'abc':true },
-		reads: { 'some_id':true, '2':true, '3':true, 'myStr':true }
-	});
-	expect(rooms).toEqual({ 'level_some_id':'some_id', 'level_2': 'some_id', 'level_3': 'some_id', 'level_myStr': 'some_id' });
+	shouldEqual = { writes: { 'abc':true }, reads: { '2':true, '3':true, 'myStr':true } };
+	shouldEqual.writes[id] = true;
+	shouldEqual.reads[id] = true;
+	expect(mockSocket.OH.permissions).toEqual(shouldEqual);
+
+	shouldEqual = { level_1: {}, level_2: {}, level_3: {}, level_myStr: {} };
+	shouldEqual['level_'+id] = {};
+	shouldEqual['level_'+id][id] = shouldEqual.level_2[id] = shouldEqual.level_3[id] = shouldEqual.level_myStr[id] = true;
+	expect(rooms).toEqual(shouldEqual);
 
 	testOH.setClientPermissions(mockSocket, 0); //omitting reads
-	expect(mockSocket.OH.permissions).toEqual({
-		writes: { 'some_id':true },
-		reads: { 'some_id':true }
-	});
-	expect(rooms).toEqual({ 'level_some_id':'some_id' });
+	shouldEqual = { writes: {}, reads: {} };
+	shouldEqual.writes[id] = true;
+	shouldEqual.reads[id] = true;
+	expect(mockSocket.OH.permissions).toEqual(shouldEqual);
+
+	shouldEqual = { level_1: {}, level_2: {}, level_3: {}, level_myStr: {} };
+	shouldEqual['level_'+id] = {};
+	shouldEqual['level_'+id][id] = true;
+	expect(rooms).toEqual(shouldEqual);
 
 	testOH.setClientPermissions(mockSocket, 0, 0); //reads as 0
-	expect(mockSocket.OH.permissions).toEqual({
-		writes: { 'some_id':true },
-		reads: { 'some_id':true }
-	});
-	expect(rooms).toEqual({ 'level_some_id':'some_id' });
+	shouldEqual = { writes: {}, reads: {} };
+	shouldEqual.writes[id] = true;
+	shouldEqual.reads[id] = true;
+	expect(mockSocket.OH.permissions).toEqual(shouldEqual);
+
+	shouldEqual = { level_1: {}, level_2: {}, level_3: {}, level_myStr: {} };
+	shouldEqual['level_'+id] = {};
+	shouldEqual['level_'+id][id] = true;
+	expect(rooms).toEqual(shouldEqual);
 });
 
 test('create object for client', (done) => {
@@ -121,6 +160,7 @@ test('create object for client', (done) => {
 	testOH.setPermission('root.an_arr.#.nestedArr', 0, 2);
 	testOH.setPermission('root.an_arr.5.nestedArr', 0, 3);
 	
+	let mockSocket = new MockSocket();
 	testOH.setClientPermissions(mockSocket, 0);
 	let obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
 	
@@ -312,6 +352,17 @@ test('create object for client', (done) => {
 
 		done();
 	}, 2500);//waiting more than 2000ms for observable-slim internal timeout for cleaning orphanded proxies
+});
+
+test('create and send changes to client', () => {
+	testOH = new Oh('root', undefined, infrastructure);
+	let originalIO = testOH.__io;
+	testOH.__io = mockIO;
+
+	let mockSocket = new MockSocket();
+	testOH.setClientPermissions(mockSocket, 0, 0);
+	
+	testOH.__io = originalIO;
 });
 
 //async

@@ -57,7 +57,7 @@ function onObjectChange(changes) {
 		delete item.jsonPointer;
 	}
 
-	//TODO - what if new created property is an object with child-objects and the child objects don't get caught in the permission check
+	//TODO - what if new created property is an object with child-objects and the child objects don't get check in the permission check
 
 	let requiredPermissions = [];
 	iterateCheckPermissions(this.__permissions, changes[0].path.split('.'), requiredPermissions);
@@ -81,10 +81,10 @@ function onObjectChange(changes) {
 		for(let [id, socket] of this.clients) {
 			let clientSatisfiesPermissions = true;
 
-			for(let levelPermissions of requiredPermissions) { //permissions array per level of path
+			for(let levelPermissions of requiredPermissions) { //cascading permissions array of path
 				let clientSatisfiesLevel = false;
 
-				for(let permission of levelPermissions) { //permissions of current level
+				for(let permission of levelPermissions) { //permissions of current level in path
 					if(socket.OH.permissions.reads[permission]) {
 						clientSatisfiesLevel = true;
 						break;
