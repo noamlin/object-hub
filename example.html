@@ -30,7 +30,7 @@ table > tbody > tr > td {
 }
 
 td > input {
-	width: calc(100% - 50px);
+	width: calc(100% - 70px);
 	border: 0;
 }
 	</style>
@@ -63,7 +63,7 @@ window.addEventListener('DOMContentLoaded', (event) => {
 				event.currentTarget.value = '';
 			}
 		});
-		span.textContent = 'OH.game.';
+		span.textContent = `OHs[${i}].game.`;
 		td.appendChild(span);
 		td.appendChild(input);
 		trInputs.appendChild(td);
@@ -77,23 +77,6 @@ window.addEventListener('DOMContentLoaded', (event) => {
 			pre.textContent = JSON.stringify(OHs[i].game, undefined, 4);
 		}, 260);
 	}
-
-	var prox = new Proxserve({ obj: {}, arr: [] });
-	prox.on('change', function(change) {
-		console.log('prox: ', change);
-	});
-	prox.obj.on('change', function(change) {
-		console.log('prox.obj: ', change);
-	});
-	prox.arr.on('change', function(change) {
-		console.log('prox.arr: ', change);
-	});
-	prox.obj.a = 'a';
-	prox.obj.a = 'b';
-	delete prox.obj.a;
-	prox.arr[0] = 'a';
-	prox.arr[0] = 'b';
-	delete prox.arr[0];
 });
 	</script>
 <body>

@@ -49,7 +49,7 @@ ohMain.setPermission('game.does.not.exist', 4);
 
 ohMain.on('connection', function(socket, clientData, init) {
 	let id = socket.OH.id;
-	this.setPermission(`game.players.${id}.secret`, id, id);
+	this.setPermission(`game.players.${id}.secret`, id, id); //only client himself can read/write this secret
 
 	this.game.players[id] = {
 		name: '',

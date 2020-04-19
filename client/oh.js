@@ -14,7 +14,8 @@ class Oh {
 		this.socket.on('init', (data) => {
 			this.id = data.id;
 			if(data.obj && data.obj[this.__rootPath]) {
-				this[this.__rootPath] = ObservableSlim.create(data.obj[this.__rootPath], true, this.onObjectChange.bind(this));
+				this[this.__rootPath] = new Proxserve(data.obj[this.__rootPath]);
+				this[this.__rootPath].on('change', this.onObjectChange.bind(this));
 				this.initiated = true;
 			}
 		});
@@ -28,10 +29,10 @@ class Oh {
 
 	updateObject(changes) {
 		if(Array.isArray(changes)) {
-			ObservableSlim.stop(this[this.__rootPath]); //don't record these changes thinking the client made them
+			this[this.__rootPath].stop(); //don't record these changes thinking the client made them
 
 			for(let change of changes) {
-				let parts = change.path.split('.');
+				let parts = Proxserve.splitPath(change.path);
 				let currObj = this;
 
 				while(typeof currObj[ parts[0] ] !== 'undefined' && parts.length > 1) {
@@ -42,7 +43,7 @@ class Oh {
 					switch(change.type) {
 						case 'add':
 						case 'update':
-							currObj[ parts[0] ] = change.newValue;
+							currObj[ parts[0] ] = change.value;
 							break;
 						case 'delete':
 							delete currObj[ parts[0] ];
@@ -57,7 +58,7 @@ class Oh {
 				}
 			}
 			
-			ObservableSlim.resume(this[this.__rootPath]);
+			this[this.__rootPath].activate();
 		} else {
 			console.error('changes received from server are not an array', changes);
 		}
