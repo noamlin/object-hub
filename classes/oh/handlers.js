@@ -45,83 +45,91 @@ function onDisconnection(socket, reason) {
  * @property {String} type - the type of change. may be - "create"|"update"|"delete"
  */
 /**
- * updates the path of all changes and filters them to ordered batches with the same path.
- * hopefull these changes will always belong to one batch (all changes will have the same path.
+ * filters changes to ordered batches with the same path and updates the paths.
+ * hopefully these changes will always belong to one batch (all changes will have the same path.
  * like the batch of changes created from array manipulation)
  * @param {Array.Change} changes
+ * @param {String} [prepend2path] - prepend a property name to all paths
  */
-function onObjectChange(changes) {
-	if(changes.length === 0) return;
-
+function separate2batches(changes, prepend2path='') {
+	let batches = [];
 	let lastPath;
 	let lastIndex = -1;
+
 	for(let i=0; i < changes.length; i++) {
-		changes[i].path = `.${this.__rootPath}${changes[i].path}`;
+		changes[i].path = `${prepend2path}${changes[i].path}`;
 		if(lastIndex === -1) {
 			lastPath = changes[i].path;
 			lastIndex = i;
 		}
 		else if(changes[i].path !== lastPath) {
-			onObjectChange_handleBatch.call(this, changes.slice(lastIndex, i));
+			batches.push(changes.slice(lastIndex, i));
 			lastPath = changes[i].path;
 			lastIndex = i;
 		}
 	}
-	onObjectChange_handleBatch.call(this, changes.slice(lastIndex));
+	batches.push(changes.slice(lastIndex));
+
+	return batches;
 }
 
 /**
  * checks permissions and then emits the changes to the corresponding clients
  * @param {Array} changes
  */
-function onObjectChange_handleBatch(changes) {
-	let requiredPermissions = [];
-	iterateCheckPermissions(this.__permissions, Proxserve.splitPath(changes[0].path), requiredPermissions);
-	//TODO - what if new created property is an object with child-objects and the child objects don't get check in the permission check
+function onObjectChange(changes) {
+	if(changes.length === 0) return;
 
-	if(requiredPermissions.length === 0) {
-		requiredPermissions.push(['0']);
-	}
+	let batches = separate2batches(changes, '.'+this.__rootPath); //batches of changes
+	for(changes of batches) {
+		let requiredPermissions = [];
+		iterateCheckPermissions(this.__permissions, Proxserve.splitPath(changes[0].path), requiredPermissions);
+		//TODO - what if new created property is an object with child-objects and the child objects don't get check in the permission check
 
-	let ioToClients = this.__io;
-
-	//best case when only one level requires permissions
-	if(requiredPermissions.length === 1) {
-		for(let permission of requiredPermissions[0]) {
-			ioToClients = ioToClients.to(`level_${permission}`); //chain rooms
+		if(requiredPermissions.length === 0) {
+			requiredPermissions.push(['0']);
 		}
-		ioToClients.emit('change', changes);
-	}
-	else { //check every client and chain them to an IO object that will message them
-		let foundClients = false;
 
-		for(let [id, socket] of this.clients) {
-			let clientSatisfiesPermissions = true;
+		let ioToClients = this.__io;
 
-			for(let levelPermissions of requiredPermissions) { //cascading permissions array of path
-				let clientSatisfiesLevel = false;
+		//best case when only one level requires permissions
+		if(requiredPermissions.length === 1) {
+			for(let permission of requiredPermissions[0]) {
+				ioToClients = ioToClients.to(`level_${permission}`); //chain rooms
+			}
+			ioToClients.emit('change', changes);
+		}
+		else { //check every client and chain them to an IO object that will message them
+			let foundClients = false;
 
-				for(let permission of levelPermissions) { //permissions of current level in path
-					if(socket.OH.permissions.reads[permission]) {
-						clientSatisfiesLevel = true;
+			for(let [id, socket] of this.clients) {
+				let clientSatisfiesPermissions = true;
+
+				for(let levelPermissions of requiredPermissions) { //cascading permissions array of path
+					let clientSatisfiesLevel = false;
+
+					for(let permission of levelPermissions) { //permissions of current level in path
+						if(socket.OH.permissions.reads[permission]) {
+							clientSatisfiesLevel = true;
+							break;
+						}
+					}
+
+					if(!clientSatisfiesLevel) {
+						clientSatisfiesPermissions = false;
 						break;
 					}
 				}
 
-				if(!clientSatisfiesLevel) {
-					clientSatisfiesPermissions = false;
-					break;
+				if(clientSatisfiesPermissions) {
+					ioToClients = ioToClients.to(socket.id); //chain client
+					foundClients = true;
 				}
 			}
 
-			if(clientSatisfiesPermissions) {
-				ioToClients = ioToClients.to(socket.id); //chain client
-				foundClients = true;
+			if(foundClients) {
+				ioToClients.emit('change', changes);
 			}
-		}
-
-		if(foundClients) {
-			ioToClients.emit('change', changes);
 		}
 	}
 }
@@ -172,66 +180,69 @@ function iterateCheckPermissions(permissions, parts, found, isWrite=false) {
 
 function onClientObjectChange(socket, changes) {
 	if(Array.isArray(changes)) {
-		let relatedPermissions = {};
-		iterateCheckPermissions(this.__permissions, changes[0].path.split('.'), relatedPermissions, true);
-		let permissionsArr = Object.keys(relatedPermissions);
-		let hasWritePermission = true;
-		for(let permission of permissionsArr) {
-			if(!socket.OH.permissions.writes[permission]) {
-				hasWritePermission = false; //client doesn't have write permissions
-				break;
-			}
-		}
-
-		for(let change of changes) {
-			let parts = change.path.split('.');
-			let currObj = this;
-
-			while(typeof currObj[ parts[0] ] !== 'undefined' && parts.length > 1) {
-				currObj = currObj[ parts.shift() ];
-			}
-
-			if(parts.length === 1) { //previous loop finished on time
-				if(hasWritePermission) { //client has write permission
-					switch(change.type) {
-						case 'add':
-						case 'update':
-							currObj[ parts[0] ] = change.newValue;
-							break;
-						case 'delete':
-							delete currObj[ parts[0] ];
-							break;
-					}
+		let batches = separate2batches(changes);
+		for(changes of batches) {
+			let relatedPermissions = {};
+			iterateCheckPermissions(this.__permissions, changes[0].path.split('.'), relatedPermissions, true);
+			let permissionsArr = Object.keys(relatedPermissions);
+			let hasWritePermission = true;
+			for(let permission of permissionsArr) {
+				if(!socket.OH.permissions.writes[permission]) {
+					hasWritePermission = false; //client doesn't have write permissions
+					break;
 				}
-				else { //client doesn't have write permissions
-					switch(change.type) {
-						case 'add':
-							change.previousValue = currObj[ parts[0] ];
-							change.newValue = undefined;
-							change.type = 'delete';
-							break;
-						case 'update':
-							change.previousValue = change.newValue;
-							change.newValue = currObj[ parts[0] ];
-							break;
-						case 'delete':
-							change.previousValue = undefined;
-							change.newValue = currObj[ parts[0] ];
-							change.type = 'add';
-							break;
-					}
-					change.reason = 'Denied [no writing permission]';
-				}
-			} else {
-				console.error('couldn\'t loop completely over path', change);
 			}
 
-			if(!hasWritePermission) {
-				this.__io.to(socket.id).emit('change', changes);
+			for(let change of changes) {
+				let parts = Proxserve.splitPath(change.path);
+				let currObj = this;
+
+				while(typeof currObj[ parts[0] ] !== 'undefined' && parts.length > 1) {
+					currObj = currObj[ parts.shift() ];
+				}
+
+				if(parts.length === 1) { //previous loop finished on time
+					if(hasWritePermission) { //client has write permission
+						switch(change.type) {
+							case 'create':
+							case 'update':
+								currObj[ parts[0] ] = change.value;
+								break;
+							case 'delete':
+								delete currObj[ parts[0] ];
+								break;
+						}
+					}
+					else { //client doesn't have write permissions
+						switch(change.type) {
+							case 'create':
+								change.oldValue = currObj[ parts[0] ];
+								change.value = undefined;
+								change.type = 'delete';
+								break;
+							case 'update':
+								change.oldValue = change.value;
+								change.value = currObj[ parts[0] ];
+								break;
+							case 'delete':
+								change.oldValue = undefined;
+								change.value = currObj[ parts[0] ];
+								change.type = 'create';
+								break;
+						}
+						change.reason = 'Denied [no writing permission]';
+					}
+				} else {
+					console.error('couldn\'t loop completely over path', change);
+				}
+
+				if(!hasWritePermission) {
+					this.__io.to(socket.id).emit('change', changes);
+				}
 			}
 		}
 	} else {
-		console.error('changes received from server are not an array', changes);
+		console.error('changes received from client are not an array', changes);
 	}
 }
 

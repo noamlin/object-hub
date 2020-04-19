@@ -41,7 +41,7 @@ class Oh {
 
 				if(parts.length === 1) { //previous loop finished on time
 					switch(change.type) {
-						case 'add':
+						case 'create':
 						case 'update':
 							currObj[ parts[0] ] = change.value;
 							break;
@@ -65,14 +65,11 @@ class Oh {
 	}
 
 	onObjectChange(changes) {
-		for(let item of changes) {
-			item.path = `${this.__rootPath}.${item.currentPath}`;
-			delete item.currentPath;
-			delete item.target;
-			delete item.proxy;
-			delete item.jsonPointer;
+		if(changes.length === 0) return;
+
+		for(let i=0; i < changes.length; i++) {
+			changes[i].path = `.${this.__rootPath}${changes[i].path}`;
 		}
-	
 		this.socket.emit('change', changes);
 	}
 };
