@@ -2,7 +2,7 @@
 
 const EventEmitter = require('events');
 const socketio = require('socket.io');
-const ObservableSlim = require('observable-slim');
+const Proxserve = require('proxserve');
 const handlers = require('./handlers.js');
 const { realtypeof, str2VarName } = require('../../utils/general.js');
 
@@ -29,7 +29,8 @@ module.exports = exports = class Oh extends EventEmitter {
 			socket.on('change', handlers.onClientObjectChange.bind(this, socket));
 		});
 
-		this[rootPath] = ObservableSlim.create(infrastructure, true, handlers.onObjectChange.bind(this));
+		this[rootPath] = new Proxserve(infrastructure);
+		this[rootPath].on('change', handlers.onObjectChange.bind(this));
 	}
 
 	/**
@@ -133,7 +134,7 @@ module.exports = exports = class Oh extends EventEmitter {
 	 * @param {Function} [cb] - a callback function
 	 */
 	destroy(cb) {
-		let originalObj = this[this.__rootPath].__getTarget;
+		let originalObj = this[this.__rootPath].getOriginalTarget();
 		setImmediate(() => {
 			//first disconnect all clients and trigger all 'disconnection' events which might still be using the proxy object
 			let socketsKeys = Object.keys(this.__io.connected);
@@ -143,7 +144,7 @@ module.exports = exports = class Oh extends EventEmitter {
 			this.__io.removeAllListeners('connection');
 
 			setImmediate(() => {
-				ObservableSlim.remove(this[this.__rootPath]);
+				Proxserve.destroy(this[this.__rootPath]);
 
 				setImmediate(() => {
 					delete this[this.__rootPath];

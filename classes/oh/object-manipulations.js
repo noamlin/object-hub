@@ -11,8 +11,7 @@ const { realtypeof } = require('../../utils/general.js');
  */
 function prepareObjectForClient(clientReadPermissions) {
 	let obj = {};
-	obj[this.__rootPath] = cloneDeep(this[this.__rootPath].__getTarget);
-	delete obj[this.__rootPath].__getTarget;
+	obj[this.__rootPath] = cloneDeep(this[this.__rootPath]);
 
 	iterateClear(obj, this.__permissions, clientReadPermissions);
 	return obj;

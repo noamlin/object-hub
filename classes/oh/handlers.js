@@ -2,6 +2,7 @@
 
 const { str2VarName, isNumeric } = require('../../utils/general.js');
 const { prepareObjectForClient } = require('./object-manipulations.js');
+const Proxserve = require('proxserve');
 
 /**
  * @param {Object} this - The OH class object
@@ -37,30 +38,46 @@ function onDisconnection(socket, reason) {
 }
 
 /**
- * 
- * @param {Array} changes - a changes array that holds objects like this:
- * currentPath:"players.man1"
- * jsonPointer:"/players/man1"
- * newValue:"john"
- * previousValue:undefined
- * property:"undefined"
- * proxy:Proxy {objecthubWCXgnQL4_cWpkuRAAAA: "/object-hub#WCXgn0QL4_cWpkuRAAAA", objecthubQsyjL3olnYUXcjEJAAAB: "/object-hub#QsyjL3olnYUXcjEJAAAB", __targetPosition: 1}
- * target:Object {objecthubWCXgnQL4_cWpkuRAAAA: "/object-hub#WCXgn0QL4_cWpkuRAAAA", objecthubQsyjL3olnYUXcjEJAAAB: "/object-hub#QsyjL3olnYUXcjEJAAAB", __targetPosition: 1}
- * type: "delete"|"add"|"update"
+ * @typedef {Object} Change - each change emitted from Proxserve
+ * @property {String} path - the path from the object listening to the property that changed
+ * @property {*} value - the new value that was set
+ * @property {*} oldValue - the previous value
+ * @property {String} type - the type of change. may be - "create"|"update"|"delete"
+ */
+/**
+ * updates the path of all changes and filters them to ordered batches with the same path.
+ * hopefull these changes will always belong to one batch (all changes will have the same path.
+ * like the batch of changes created from array manipulation)
+ * @param {Array.Change} changes
  */
 function onObjectChange(changes) {
-	for(let item of changes) {
-		item.path = `${this.__rootPath}.${item.currentPath}`;
-		delete item.currentPath;
-		delete item.target;
-		delete item.proxy;
-		delete item.jsonPointer;
+	if(changes.length === 0) return;
+
+	let lastPath;
+	let lastIndex = -1;
+	for(let i=0; i < changes.length; i++) {
+		changes[i].path = `.${this.__rootPath}${changes[i].path}`;
+		if(lastIndex === -1) {
+			lastPath = changes[i].path;
+			lastIndex = i;
+		}
+		else if(changes[i].path !== lastPath) {
+			onObjectChange_handleBatch.call(this, changes.slice(lastIndex, i));
+			lastPath = changes[i].path;
+			lastIndex = i;
+		}
 	}
+	onObjectChange_handleBatch.call(this, changes.slice(lastIndex));
+}
 
-	//TODO - what if new created property is an object with child-objects and the child objects don't get check in the permission check
-
+/**
+ * checks permissions and then emits the changes to the corresponding clients
+ * @param {Array} changes
+ */
+function onObjectChange_handleBatch(changes) {
 	let requiredPermissions = [];
-	iterateCheckPermissions(this.__permissions, changes[0].path.split('.'), requiredPermissions);
+	iterateCheckPermissions(this.__permissions, Proxserve.splitPath(changes[0].path), requiredPermissions);
+	//TODO - what if new created property is an object with child-objects and the child objects don't get check in the permission check
 
 	if(requiredPermissions.length === 0) {
 		requiredPermissions.push(['0']);

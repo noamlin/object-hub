@@ -1,8 +1,10 @@
 "use strict"
 
 const Oh = require('../classes/oh/oh.js');
+const handlers = require('../classes/oh/handlers.js');
 const { prepareObjectForClient } = require('../classes/oh/object-manipulations.js');
 const { realtypeof } = require('../utils/general.js');
+const { cloneDeep } = require('lodash');
 
 var infrastructure = {
 	a_number: 1.23,
@@ -26,10 +28,8 @@ var rooms = {};
 
 class MockSocket {
 	constructor() {
-		this.OH = {
-			id: 'id' + Math.floor(Math.random()*10000),
-			permissions: {}
-		}
+		this.id = 'id' + Math.floor(Math.random()*10000);
+		this.handshake = { query: '' };
 	}
 	join(name) {
 		if(!rooms[name]) {
@@ -43,15 +43,21 @@ class MockSocket {
 };
 
 var mockIO = {
-	to: function() {},
-	on: function() {},
-	emit: function() {}
+	rooms: {},
+	lastEmit: null,
+	to: function(room) {
+		this.rooms[room] = true;
+		return this;
+	},
+	on: function(args) { console.log('on', args); },
+	emit: function(message, data) {
+		this.lastEmit = { to: this.rooms, message: message, changes: data };
+		this.rooms = {};
+	}
 };
-
-var testOH;
-
-test('instantiate OH', () => {
-	testOH = new Oh('root', undefined, infrastructure);
+if(false) {
+test('1. Instantiate OH', () => {
+	let testOH = new Oh('root', undefined, cloneDeep(infrastructure));
 
 	expect(realtypeof(testOH.clients)).toBe('Map');
 	expect(typeof testOH.root).toBe('object');
@@ -59,7 +65,9 @@ test('instantiate OH', () => {
 	expect(typeof testOH.setClientPermissions).toBe('function');
 });
 
-test('check permissions creation', () => {
+test('2. Check permissions creation', () => {
+	let testOH = new Oh('root', undefined, cloneDeep(infrastructure));
+
 	let expectedPermissions = { 'root': {'a_number': { __writes: {}, __reads: {} } } };
 	testOH.setPermission('root.a_number', 0, 0);
 	expect(testOH.__permissions).toEqual(expectedPermissions);
@@ -90,7 +98,8 @@ test('check permissions creation', () => {
 	expect(testOH.__permissions).toEqual(expectedPermissions);
 });
 
-test('check client permissions creation', () => {
+test('3. Check client permissions creation', () => {
+	let testOH = new Oh('root', undefined, cloneDeep(infrastructure));
 	let mockSocket = new MockSocket();
 	let id = mockSocket.OH.id;
 
@@ -150,8 +159,8 @@ test('check client permissions creation', () => {
 	expect(rooms).toEqual(shouldEqual);
 });
 
-test('create object for client', (done) => {
-	testOH = new Oh('root', undefined, infrastructure);
+test('4. Create object for client', () => {
+	let testOH = new Oh('root', undefined, cloneDeep(infrastructure));
 
 	testOH.setPermission('root.a_number', 0, 1);
 	testOH.setPermission('root.a_string', 0, 0);//on purpose
@@ -289,86 +298,74 @@ test('create object for client', (done) => {
 	testOH.setPermission('root.allCombinations.obj1.obj2.arr1.3.1.#.obj3.arr2.#.b', 0, 12);
 	testOH.setPermission('root.allCombinations.obj1.obj2.arr1.3.1.#.obj3.arr2.2.c', 0, 13);
 
-	setTimeout(() => {
-		testOH.setClientPermissions(mockSocket, 0, 0);
-		let obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
-		expect(obj).toEqual({ root: { allCombinations: {} } });
-	
-		testOH.setClientPermissions(mockSocket, 0, 4);
-		obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
-		expect(obj).toEqual({ root: { allCombinations: { obj1: {} } } });
-	
-		testOH.setClientPermissions(mockSocket, 0, [4,5]);
-		obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
-		expect(obj).toEqual({ root: { allCombinations: { obj1: { obj2: {} } } } });
-	
-		testOH.setClientPermissions(mockSocket, 0, [4,5,6]);
-		obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
-		expect(obj).toEqual({ root: { allCombinations: { obj1: { obj2: { arr1: [0,1,2,[undefined,undefined,undefined]] } } } } });
-	
-		testOH.setClientPermissions(mockSocket, 0, [4,5,6,7]);
-		obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
-		expect(obj).toEqual({ root: { allCombinations: { obj1: { obj2: { arr1: [0,1,2, [undefined, [{}], undefined] ] } } } } });
-	
-		testOH.setClientPermissions(mockSocket, 0, [4,5,6,7,8]);
-		obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
-		expect(obj).toEqual({ root: { allCombinations: { obj1: { obj2: { arr1: [0,1,2, [undefined, [{}], 2] ] } } } } });
-	
-		testOH.setClientPermissions(mockSocket, 0, [4,5,6,7,8,9]);
-		obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
-		expect(obj).toEqual({ root: { allCombinations: { obj1: { obj2: { arr1: [0,1,2, [0, [{}], 2] ] } } } } });
-	
-		testOH.setClientPermissions(mockSocket, 0, [4,5,6,7,8,9,10]);
-		obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
-		expect(obj).toEqual({ root: { allCombinations: { obj1: { obj2: { arr1: [0,1,2, [0, [{ obj3: {} }], 2] ] } } } } });
-	
-		testOH.setClientPermissions(mockSocket, 0, [4,5,6,7,8,9,10,11]);
-		obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
-		expect(obj).toEqual({ root: { allCombinations: { obj1: { obj2: { arr1: [0,1,2, [0, [{ obj3: { arr2: [{a:'a',c:'c'}, {a:'x',c:'z'}, {a:'1'}] } }], 2] ] } } } } });
-	
-		testOH.setClientPermissions(mockSocket, 0, [4,5,6,7,8,9,10,11,12]);
-		obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
-		expect(obj).toEqual({ root: { allCombinations: { obj1: { obj2: { arr1: [0,1,2, [0, [{ obj3: { arr2: [{a:'a',b:'b',c:'c'}, {a:'x',b:'y',c:'z'}, {a:'1',b:'2'}] } }], 2] ] } } } } });
-	
-		testOH.setClientPermissions(mockSocket, 0, [4,5,6,7,8,9,10,11,12,13]);
-		obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
-		expect(obj).toEqual({ root: { allCombinations: { obj1: { obj2: { arr1: [0,1,2, [0, [{ obj3: { arr2: [{a:'a',b:'b',c:'c'}, {a:'x',b:'y',c:'z'}, {a:'1',b:'2',c:'3'}] } }], 2] ] } } } } });
-	
-		testOH.setClientPermissions(mockSocket, 0, [5,6,7,8,9,10,11,12,13]); //no 4
-		obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
-		expect(obj).toEqual({ root: { allCombinations: {} } });
-	
-		testOH.setClientPermissions(mockSocket, 0, [4,5,6, 9]);
-		obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
-		expect(obj).toEqual({ root: { allCombinations: { obj1: { obj2: { arr1: [0,1,2, [0, [{}], 2] ] } } } } });
-	
-		testOH.setClientPermissions(mockSocket, 0, [4,5,6, 9, 13]);
-		obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
-		expect(obj).toEqual({ root: { allCombinations: { obj1: { obj2: { arr1: [0,1,2, [0, [{}], 2] ] } } } } });
-	
-		testOH.setClientPermissions(mockSocket, 0, [4,5,6, 9,10,11, 13]);
-		obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
-		expect(obj).toEqual({ root: { allCombinations: { obj1: { obj2: { arr1: [0,1,2, [0, [{ obj3: { arr2: [{a:'a',c:'c'}, {a:'x',c:'z'}, {a:'1',c:'3'}] } }], 2] ] } } } } });
-
-		done();
-	}, 2500);//waiting more than 2000ms for observable-slim internal timeout for cleaning orphanded proxies
-});
-
-test('create and send changes to client', () => {
-	testOH = new Oh('root', undefined, infrastructure);
-	let originalIO = testOH.__io;
-	testOH.__io = mockIO;
-
-	let mockSocket = new MockSocket();
 	testOH.setClientPermissions(mockSocket, 0, 0);
-	
-	testOH.__io = originalIO;
+	obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
+	expect(obj).toEqual({ root: { allCombinations: {} } });
+
+	testOH.setClientPermissions(mockSocket, 0, 4);
+	obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
+	expect(obj).toEqual({ root: { allCombinations: { obj1: {} } } });
+
+	testOH.setClientPermissions(mockSocket, 0, [4,5]);
+	obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
+	expect(obj).toEqual({ root: { allCombinations: { obj1: { obj2: {} } } } });
+
+	testOH.setClientPermissions(mockSocket, 0, [4,5,6]);
+	obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
+	expect(obj).toEqual({ root: { allCombinations: { obj1: { obj2: { arr1: [0,1,2,[undefined,undefined,undefined]] } } } } });
+
+	testOH.setClientPermissions(mockSocket, 0, [4,5,6,7]);
+	obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
+	expect(obj).toEqual({ root: { allCombinations: { obj1: { obj2: { arr1: [0,1,2, [undefined, [{}], undefined] ] } } } } });
+
+	testOH.setClientPermissions(mockSocket, 0, [4,5,6,7,8]);
+	obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
+	expect(obj).toEqual({ root: { allCombinations: { obj1: { obj2: { arr1: [0,1,2, [undefined, [{}], 2] ] } } } } });
+
+	testOH.setClientPermissions(mockSocket, 0, [4,5,6,7,8,9]);
+	obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
+	expect(obj).toEqual({ root: { allCombinations: { obj1: { obj2: { arr1: [0,1,2, [0, [{}], 2] ] } } } } });
+
+	testOH.setClientPermissions(mockSocket, 0, [4,5,6,7,8,9,10]);
+	obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
+	expect(obj).toEqual({ root: { allCombinations: { obj1: { obj2: { arr1: [0,1,2, [0, [{ obj3: {} }], 2] ] } } } } });
+
+	testOH.setClientPermissions(mockSocket, 0, [4,5,6,7,8,9,10,11]);
+	obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
+	expect(obj).toEqual({ root: { allCombinations: { obj1: { obj2: { arr1: [0,1,2, [0, [{ obj3: { arr2: [{a:'a',c:'c'}, {a:'x',c:'z'}, {a:'1'}] } }], 2] ] } } } } });
+
+	testOH.setClientPermissions(mockSocket, 0, [4,5,6,7,8,9,10,11,12]);
+	obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
+	expect(obj).toEqual({ root: { allCombinations: { obj1: { obj2: { arr1: [0,1,2, [0, [{ obj3: { arr2: [{a:'a',b:'b',c:'c'}, {a:'x',b:'y',c:'z'}, {a:'1',b:'2'}] } }], 2] ] } } } } });
+
+	testOH.setClientPermissions(mockSocket, 0, [4,5,6,7,8,9,10,11,12,13]);
+	obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
+	expect(obj).toEqual({ root: { allCombinations: { obj1: { obj2: { arr1: [0,1,2, [0, [{ obj3: { arr2: [{a:'a',b:'b',c:'c'}, {a:'x',b:'y',c:'z'}, {a:'1',b:'2',c:'3'}] } }], 2] ] } } } } });
+
+	testOH.setClientPermissions(mockSocket, 0, [5,6,7,8,9,10,11,12,13]); //no 4
+	obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
+	expect(obj).toEqual({ root: { allCombinations: {} } });
+
+	testOH.setClientPermissions(mockSocket, 0, [4,5,6, 9]);
+	obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
+	expect(obj).toEqual({ root: { allCombinations: { obj1: { obj2: { arr1: [0,1,2, [0, [{}], 2] ] } } } } });
+
+	testOH.setClientPermissions(mockSocket, 0, [4,5,6, 9, 13]);
+	obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
+	expect(obj).toEqual({ root: { allCombinations: { obj1: { obj2: { arr1: [0,1,2, [0, [{}], 2] ] } } } } });
+
+	testOH.setClientPermissions(mockSocket, 0, [4,5,6, 9,10,11, 13]);
+	obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
+	expect(obj).toEqual({ root: { allCombinations: { obj1: { obj2: { arr1: [0,1,2, [0, [{ obj3: { arr2: [{a:'a',c:'c'}, {a:'x',c:'z'}, {a:'1',c:'3'}] } }], 2] ] } } } } });
 });
 
 //async
-test('destroy an OH instance', (done) => {
+test('5. Destroy an OH instance', (done) => {
+	let anInfrastructure = cloneDeep(infrastructure);
+	let testOH = new Oh('root', undefined, anInfrastructure);
+
 	testOH.destroy((originalObject) => {
-		expect(originalObject).toEqual(infrastructure);
+		expect(originalObject).toEqual(anInfrastructure);
 		expect(typeof testOH.clients).toBe('undefined');
 		expect(typeof testOH.root).toBe('undefined');
 		expect(typeof testOH.__rootPath).toBe('undefined');
@@ -376,4 +373,58 @@ test('destroy an OH instance', (done) => {
 		expect(typeof testOH.__io).toBe('undefined');
 		done();
 	});
+});
+}
+test('6. Create and send changes to client', (done) => {
+	let testOH = new Oh('root', undefined, cloneDeep(infrastructure));
+	testOH.__io = mockIO;
+
+	let mockSocket = new MockSocket();
+	handlers.onConnection.call(testOH, mockSocket);
+	testOH.setClientPermissions(mockSocket, 0, 0);
+
+	testOH.root.nested1.nested2.nested3 = 2;
+	setTimeout(() => {
+		expect(testOH.__io.lastEmit).toEqual({
+			to: { level_0: true },
+			message: 'change',
+			changes: [
+				{
+				  type: 'update',
+				  value: 2,
+				  oldValue: true,
+				  path: '.root.nested1.nested2.nested3'
+				}
+			 ]
+		});
+
+		testOH.setPermission('root.nested1', 0, 1);
+		testOH.setPermission('root.nested1.nested2', 0, 2);
+		testOH.setPermission('root.nested1.nested2.nested3', 0, 3);
+		testOH.__io.lastEmit = null;
+		testOH.root.nested1.nested2.nested3 = 3;
+		setTimeout(() => {
+			expect(testOH.__io.lastEmit).toEqual(null);
+
+			testOH.setClientPermissions(mockSocket, 0, [1,2,3]);
+			testOH.root.nested1.nested2.nested3 = 4;
+			setTimeout(() => {
+				let shouldBe = {
+					to: {},
+					message: 'change',
+					changes: [
+						{
+						  type: 'update',
+						  value: 4,
+						  oldValue: 3,
+						  path: '.root.nested1.nested2.nested3'
+						}
+					 ]
+				};
+				shouldBe.to[mockSocket.OH.id] = true; //should send to only one room, which is our client's ID
+				expect(testOH.__io.lastEmit).toEqual(shouldBe);
+				done();
+			}, 20);
+		}, 20);
+	}, 20);
 });

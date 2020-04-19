@@ -12,11 +12,11 @@ server.listen(1337);
 app.get('/', (req, res) => {
 	res.sendFile(__dirname + '/example.html');
 });
-app.get('/observable-slim.js', (req, res) => {
-	res.sendFile(__dirname + '/node_modules/observable-slim/observable-slim.js');
-});
 app.get('/client/oh.js', (req, res) => {
 	res.sendFile(__dirname + '/client/oh.js');
+});
+app.get('/proxserve.js', (req, res) => {
+	res.sendFile('/var/www/proxserve/index.js', { root: '/' });
 });
 
 let infrastructure = {
