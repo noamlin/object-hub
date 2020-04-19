@@ -376,12 +376,19 @@ test('5. Destroy an OH instance', (done) => {
 });
 }
 test('6. Create and send changes to client', (done) => {
+	let delay = 20;
 	let testOH = new Oh('root', undefined, cloneDeep(infrastructure));
 	testOH.__io = mockIO;
 
 	let mockSocket = new MockSocket();
+	let mockSocket2 = new MockSocket();
+	let mockSocket3 = new MockSocket();
 	handlers.onConnection.call(testOH, mockSocket);
+	handlers.onConnection.call(testOH, mockSocket2);
+	handlers.onConnection.call(testOH, mockSocket3);
 	testOH.setClientPermissions(mockSocket, 0, 0);
+	testOH.setClientPermissions(mockSocket2, 0, 0);
+	testOH.setClientPermissions(mockSocket3, 0, 0);
 
 	testOH.root.nested1.nested2.nested3 = 2;
 	setTimeout(() => {
@@ -398,33 +405,65 @@ test('6. Create and send changes to client', (done) => {
 			 ]
 		});
 
+		part2();
+	}, delay);
+
+	function part2() {
 		testOH.setPermission('root.nested1', 0, 1);
 		testOH.setPermission('root.nested1.nested2', 0, 2);
 		testOH.setPermission('root.nested1.nested2.nested3', 0, 3);
 		testOH.__io.lastEmit = null;
 		testOH.root.nested1.nested2.nested3 = 3;
+
 		setTimeout(() => {
 			expect(testOH.__io.lastEmit).toEqual(null);
+			part3();
+		}, delay);
+	}
 
-			testOH.setClientPermissions(mockSocket, 0, [1,2,3]);
-			testOH.root.nested1.nested2.nested3 = 4;
-			setTimeout(() => {
-				let shouldBe = {
-					to: {},
-					message: 'change',
-					changes: [
-						{
-						  type: 'update',
-						  value: 4,
-						  oldValue: 3,
-						  path: '.root.nested1.nested2.nested3'
-						}
-					 ]
-				};
-				shouldBe.to[mockSocket.OH.id] = true; //should send to only one room, which is our client's ID
-				expect(testOH.__io.lastEmit).toEqual(shouldBe);
-				done();
-			}, 20);
-		}, 20);
-	}, 20);
+	function part3() {
+		testOH.setClientPermissions(mockSocket, 0, [1,2,3]);
+		testOH.root.nested1.nested2.nested3 = 4;
+		setTimeout(() => {
+			let shouldBe = {
+				to: {},
+				message: 'change',
+				changes: [
+					{
+						type: 'update',
+						value: 4,
+						oldValue: 3,
+						path: '.root.nested1.nested2.nested3'
+					}
+					]
+			};
+			shouldBe.to[mockSocket.OH.id] = true; //should send to only one room, which is our client's ID
+			expect(testOH.__io.lastEmit).toEqual(shouldBe);
+			part4();
+		}, delay);
+	}
+
+	function part4() {
+		testOH.setClientPermissions(mockSocket, 0, [1,2]); //not enough
+		testOH.setClientPermissions(mockSocket2, 0, [2,3]); //not enough
+		testOH.setClientPermissions(mockSocket3, 0, [1,2,3]); //enough
+		testOH.root.nested1.nested2.nested3 = 5;
+		setTimeout(() => {
+			let shouldBe = {
+				to: {},
+				message: 'change',
+				changes: [
+					{
+						type: 'update',
+						value: 5,
+						oldValue: 4,
+						path: '.root.nested1.nested2.nested3'
+					}
+					]
+			};
+			shouldBe.to[mockSocket3.OH.id] = true; //should send to only one room, which is our client's ID
+			expect(testOH.__io.lastEmit).toEqual(shouldBe);
+			done();
+		}, delay);
+	}
 });
