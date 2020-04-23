@@ -74,54 +74,101 @@ function separate2batches(changes, prepend2path='') {
 }
 
 /**
+ * get the compiled permissions of a path
+ * @param {String} path 
+ */
+function getPathPermissions(path) {
+	let requiredPermissions = null;
+	let parts = Proxserve.splitPath(path);
+	let currentObj = this.__permissions;
+	for(let part of parts) {
+		if(typeof currentObj[part] !== 'undefined') {
+			currentObj = currentObj[part];
+			if(typeof currentObj.__compiled === 'object') {
+				requiredPermissions = currentObj.__compiled;
+			}
+		}
+		else {
+			break;
+		}
+	}
+	if(requiredPermissions === null) {
+		requiredPermissions = {
+			writes: { must: [], or: [] },
+			reads: { must: [], or: [] }
+		};
+	}
+	return requiredPermissions;
+}
+
+/**
  * checks permissions and then emits the changes to the corresponding clients
  * @param {Array} changes
  */
 function onObjectChange(changes) {
 	if(changes.length === 0) return;
 
-	let batches = separate2batches(changes, '.'+this.__rootPath); //batches of changes
+	let batches = separate2batches(changes, this.__rootPath); //batches of changes
 	for(changes of batches) {
-		let requiredPermissions = [];
-		iterateCheckPermissions(this.__permissions, Proxserve.splitPath(changes[0].path), requiredPermissions);
+		let requiredPermissions = getPathPermissions.call(this, changes[0].path);
+		requiredPermissions = requiredPermissions.reads; //only reading permissions
+		
 		//TODO - what if new created property is an object with child-objects and the child objects don't get check in the permission check
 
-		if(requiredPermissions.length === 0) {
-			requiredPermissions.push(['0']);
+		if(requiredPermissions.or.length === 0) { //best case where a complete level requires permission, not to specific clients
+			if(requiredPermissions.must.length === 0) {
+				this.__io.to('level_0').emit('change', changes);
+			}
+			else {
+				let ioToClients = this.__io;
+				for(let permission of requiredPermissions.must) {
+					ioToClients = ioToClients.to(`level_${permission}`); //chain rooms
+				}
+				ioToClients.emit('change', changes);
+			}
 		}
-
-		let ioToClients = this.__io;
-
-		//best case when only one level requires permissions
-		if(requiredPermissions.length === 1) {
-			for(let permission of requiredPermissions[0]) {
+		else if(requiredPermissions.or.length === 1 && requiredPermissions.must.length === 0) {
+			let ioToClients = this.__io;
+			for(let permission of requiredPermissions.or[0]) {
 				ioToClients = ioToClients.to(`level_${permission}`); //chain rooms
 			}
 			ioToClients.emit('change', changes);
 		}
 		else { //check every client and chain them to an IO object that will message them
 			let foundClients = false;
+			let ioToClients = this.__io;
 
 			for(let [id, socket] of this.clients) {
-				let clientSatisfiesPermissions = true;
+				let clientPermissions = socket.OH.permissions.reads;
 
-				for(let levelPermissions of requiredPermissions) { //cascading permissions array of path
-					let clientSatisfiesLevel = false;
-
-					for(let permission of levelPermissions) { //permissions of current level in path
-						if(socket.OH.permissions.reads[permission]) {
-							clientSatisfiesLevel = true;
-							break;
-						}
-					}
-
-					if(!clientSatisfiesLevel) {
-						clientSatisfiesPermissions = false;
+				let clientSatisfiesMust = true;
+				for(let mustPermission of requiredPermissions.must) {
+					if(!clientPermissions[mustPermission]) {
+						clientSatisfiesMust = false;
 						break;
 					}
 				}
 
-				if(clientSatisfiesPermissions) {
+				let clientSatisfiesOr;
+				if(clientSatisfiesMust) { //this test only matters if client satisfied the 'must' permissions
+					clientSatisfiesOr = true;
+					for(let orPermissions of requiredPermissions.or) {
+						let clientSatisfiesCurrentLevel = false;
+						for(let permission of orPermissions) {
+							if(clientPermissions[permission]) {
+								clientSatisfiesCurrentLevel = true;
+								break;
+							}
+						}
+
+						if(!clientSatisfiesCurrentLevel) {
+							clientSatisfiesOr = false;
+							break;
+						}
+					}
+				}
+
+				if(clientSatisfiesMust && clientSatisfiesOr) {
 					ioToClients = ioToClients.to(socket.id); //chain client
 					foundClients = true;
 				}
@@ -135,110 +182,90 @@ function onObjectChange(changes) {
 }
 
 /**
- * Creates an array of arrays with permissions. permission is required for all levels of the path, but in each level only one permission is enough to be permitted.
- * for example - [[1,2],[2],[1,3]] - means: (1 || 2) && 2 && (1 || 3)
- * @param {Object} permissions 
- * @param {Array} parts 
- * @param {Array} found 
- * @param {Boolean} [isWrite] 
- * @returns {Array.Array} - An array of arrays of permissions required per level of the path
+ * on an object changed received from a client's socket
+ * @param {Object} socket 
+ * @param {Array} changes 
  */
-function iterateCheckPermissions(permissions, parts, found, isWrite=false) {
-	let readWrite = '__reads';
-	if(isWrite) {
-		readWrite = '__writes';
-	}
-
-	let currPathPermissions = {};
-	let part = parts.shift();
-
-	if(isNumeric(part)) {
-		let partsCopy = parts.slice(0);
-
-		if(typeof permissions['#'] === 'object') {
-			if(permissions['#'][readWrite]) {
-				Object.assign(currPathPermissions, permissions['#'][readWrite]);
-			}
-	
-			iterateCheckPermissions(permissions['#'], partsCopy, found);
-		}
-	}
-	
-	if(typeof permissions[part] === 'object') {
-		if(permissions[part][readWrite]) {
-			Object.assign(currPathPermissions, permissions[part][readWrite]);
-		}
-
-		iterateCheckPermissions(permissions[part], parts, found);
-	}
-
-	currPathPermissions = Object.keys(currPathPermissions);
-	if(currPathPermissions.length > 0) {
-		found.push(currPathPermissions);
-	}
-}
-
 function onClientObjectChange(socket, changes) {
 	if(Array.isArray(changes)) {
 		let batches = separate2batches(changes);
 		for(changes of batches) {
-			let relatedPermissions = {};
-			iterateCheckPermissions(this.__permissions, changes[0].path.split('.'), relatedPermissions, true);
-			let permissionsArr = Object.keys(relatedPermissions);
-			let hasWritePermission = true;
-			for(let permission of permissionsArr) {
-				if(!socket.OH.permissions.writes[permission]) {
-					hasWritePermission = false; //client doesn't have write permissions
+			let requiredPermissions = getPathPermissions.call(this, changes[0].path);
+			requiredPermissions = requiredPermissions.writes; //only writing permissions
+
+			let clientPermissions = socket.OH.permissions.writes;
+			let isPermitted = true;
+
+			//check 'must' permissions
+			for(let permission of requiredPermissions.must) {
+				if(!clientPermissions[permission]) {
+					isPermitted = false;
 					break;
 				}
 			}
 
-			for(let change of changes) {
-				let parts = Proxserve.splitPath(change.path);
-				let currObj = this;
+			if(isPermitted) {
+				//check 'or' permissions
+				for(let orPermissions of requiredPermissions.or) {
+					let clientSatisfiesCurrentLevel = false;
+					for(let permission of orPermissions) {
+						if(clientPermissions[permission]) {
+							clientSatisfiesCurrentLevel = true;
+							break;
+						}
+					}
 
-				while(typeof currObj[ parts[0] ] !== 'undefined' && parts.length > 1) {
-					currObj = currObj[ parts.shift() ];
+					if(!clientSatisfiesCurrentLevel) {
+						isPermitted = false;
+						break;
+					}
 				}
+			}
 
-				if(parts.length === 1) { //previous loop finished on time
-					if(hasWritePermission) { //client has write permission
+			let parts = Proxserve.splitPath(changes[0].path);
+			let currentObj = this;
+			while(typeof currentObj[ parts[0] ] !== 'undefined' && parts.length > 1) {
+				currentObj = currentObj[ parts.shift() ];
+			}
+
+			if(parts.length === 1) { //previous loop finished on time
+				for(let change of changes) {
+					if(isPermitted) { //client has writing permission
 						switch(change.type) {
 							case 'create':
 							case 'update':
-								currObj[ parts[0] ] = change.value;
+								currentObj[ parts[0] ] = change.value;
 								break;
 							case 'delete':
-								delete currObj[ parts[0] ];
+								delete currentObj[ parts[0] ];
 								break;
 						}
-					}
-					else { //client doesn't have write permissions
+					} else { //not permitted
 						switch(change.type) {
 							case 'create':
-								change.oldValue = currObj[ parts[0] ];
+								change.oldValue = currentObj[ parts[0] ];
 								change.value = undefined;
 								change.type = 'delete';
 								break;
 							case 'update':
 								change.oldValue = change.value;
-								change.value = currObj[ parts[0] ];
+								change.value = currentObj[ parts[0] ];
 								break;
 							case 'delete':
 								change.oldValue = undefined;
-								change.value = currObj[ parts[0] ];
+								change.value = currentObj[ parts[0] ];
 								change.type = 'create';
 								break;
 						}
-						change.reason = 'Denied [no writing permission]';
+						change.reason = 'Denied: no writing permission';
 					}
-				} else {
-					console.error('couldn\'t loop completely over path', change);
 				}
 
-				if(!hasWritePermission) {
-					this.__io.to(socket.id).emit('change', changes);
+				if(!isPermitted) {
+					this.__io.to(socket.id).emit('change', changes); //emit previous values to the unauthorized client
 				}
+			} else {
+				console.error('couldn\'t loop completely over path', change);
 			}
 		}
 	} else {

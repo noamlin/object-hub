@@ -34,19 +34,35 @@ module.exports = exports = class Oh extends EventEmitter {
 	}
 
 	/**
-	 * set a permission per path. converts either single or multiple values to a hashmap
+	 * set a permission per path. converts either single or multiple values to a hashmap.
+	 * if a multiple cells path is given (for example: root[0-5].some) it recursively
+	 * calls itself with specific paths (root[0].some, root[1].some...)
 	 * @param {String} path 
 	 * @param {Array|Number|String} writes - writing permissions
 	 * @param {Array|Number|String} [reads] - reading permissions 
 	 */
 	setPermission(path, writes, reads=0) {
-		//check if path (or some of it) is inside an array
-		//let hasDigitsRegexp = new RegExp(/\.\d+(\.|$)/);
-		//if(hasDigitsRegexp.test(path)) {
-		let parts = path.split('.'); //root.sub.1.alt.2 --> [root,sub,1,alt,2]
-		let part;
+		var rangePart = path.match(/\[(\d+)-(\d+)\]/);
+		if(rangePart !== null) {
+			let pathPart1 = path.slice(0, rangePart.index);
+			let pathPart2 = path.slice(rangePart.index + rangePart[0].length);
+			let min = parseInt(rangePart[1]);
+			let max = parseInt(rangePart[2]);
+			if(min > max) {
+				let tmp = min;
+				min = max;
+				max = tmp;
+			}
+			for(let i=min; i<=max; i++) {
+				this.setPermission(`${pathPart1}[${i}]${pathPart2}`, writes, reads);
+			}
+			return;
+		}
+
+		let pathArr = Proxserve.splitPath(path); //root.sub[1].alt[2] --> [root,sub,1,alt,2]
 		let pathObj = this.__permissions;
-		for(part of parts) {
+
+		for(let part of pathArr) {
 			if(typeof pathObj[part] !== 'object') {
 				pathObj[part] = {};
 			}
@@ -71,6 +87,59 @@ module.exports = exports = class Oh extends EventEmitter {
 		for(let read of reads) {
 			if(read !== 0 && read !== '0') {
 				pathObj.__reads[ read ] = true;
+			}
+		}
+
+		this.compilePermissions(pathArr);
+	}
+
+	compilePermissions(pathArr) {
+		let pathObj = this.__permissions;
+		let compiled = {
+			writes: { must: [], or: [] },
+			reads: { must: [], or: [] }
+		};
+		let types = ['writes', 'reads'];
+
+		for(let part of pathArr) {
+			pathObj = pathObj[part]; //current part of path (current parent)
+
+			for(let type of types) {
+				if(typeof pathObj['__'+type] !== 'object') {
+					continue; //this level doesn't have permissions
+				}
+				let currentLevelPermissions = Object.keys(pathObj['__'+type]); //writing permissions to reach current path part
+				if(currentLevelPermissions.length === 1 && !compiled[type].must.includes(currentLevelPermissions[0])) { //only one required permissions means it's a must for this level
+					compiled[type].must.push(currentLevelPermissions[0]);
+
+					for(let i = compiled[type].or.length-1; i >= 0; i--) {
+						if(compiled[type].or[i].includes(currentLevelPermissions[0])) { //new must permission was previously an optional permission
+							compiled[type].or.splice(i, 1); //remove from optional permissions
+						}
+					}
+				}
+				else if(currentLevelPermissions.length > 1) { //more than one means it's either of these writing permissions in order to be permitted to this level
+					let alreadyMust = false;
+					for(let aPermission of currentLevelPermissions) {
+						if(compiled[type].must.includes(aPermission)) { //one of the permissions of this level was previously a must so this entire level's requirement is redundant
+							alreadyMust = true;
+							break;
+						}
+					}
+					if(!alreadyMust) {
+						compiled[type].or.push(currentLevelPermissions);
+					}
+				}
+			}
+		}
+
+		pathObj.__compiled = compiled;
+
+		//update all children that might be affected
+		let keys = Object.keys(pathObj);
+		for(let key of keys) {
+			if(key !== '__writes' && key !== '__reads' && key !== '__compiled') {
+				this.compilePermissions(pathArr.concat(key));
 			}
 		}
 	}
@@ -142,6 +211,7 @@ module.exports = exports = class Oh extends EventEmitter {
 				this.__io.connected[key].disconnect(true);
 			}
 			this.__io.removeAllListeners('connection');
+			this.clients.clear();
 
 			setImmediate(() => {
 				Proxserve.destroy(this[this.__rootPath]);

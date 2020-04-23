@@ -5,17 +5,18 @@ class Oh {
 		this.__rootPath = rootPath;
 		this.id;
 		this.initiated = false;
+		this.isServerUpdate = false;
 		
 		this.socket = io(`/object-hub/${rootPath}`, {
 			autoConnect: true,
 			query: clientData
 		});
 
-		this.socket.on('init', (data) => {
+		this.socket.on('init', (data) => { //gets initiated with data from the server
 			this.id = data.id;
 			if(data.obj && data.obj[this.__rootPath]) {
 				this[this.__rootPath] = new Proxserve(data.obj[this.__rootPath]);
-				this[this.__rootPath].on('change', this.onObjectChange.bind(this));
+				this[this.__rootPath].on('change', this.onObjectChange.bind(this)); //when client alters the object
 				this.initiated = true;
 			}
 		});
@@ -29,7 +30,9 @@ class Oh {
 
 	updateObject(changes) {
 		if(Array.isArray(changes)) {
-			this[this.__rootPath].stop(); //don't record these changes thinking the client made them
+			//all changes are queueq for 10 ms and then fired to all listeners. so we will flag to stop our next listener call
+			//preventing infinite loop of emitting the changes from server back to the server
+			this.isServerUpdate = true;
 
 			for(let change of changes) {
 				let parts = Proxserve.splitPath(change.path);
@@ -54,21 +57,25 @@ class Oh {
 				}
 
 				if(typeof change.reason === 'string') {
-					console.warn(change.reason);
+					console.warn(change.path, change.reason);
 				}
 			}
-			
-			this[this.__rootPath].activate();
 		} else {
 			console.error('changes received from server are not an array', changes);
 		}
 	}
 
 	onObjectChange(changes) {
-		if(changes.length === 0) return;
+		if(this.isServerUpdate) {
+			this.isServerUpdate = false;
+			return;
+		}
+		if(changes.length === 0) {
+			return;
+		}
 
 		for(let i=0; i < changes.length; i++) {
-			changes[i].path = `.${this.__rootPath}${changes[i].path}`;
+			changes[i].path = `${this.__rootPath}${changes[i].path}`;
 		}
 		this.socket.emit('change', changes);
 	}

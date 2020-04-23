@@ -26,7 +26,7 @@ function prepareObjectForClient(clientReadPermissions) {
 function iterateClear(obj, permissions, clientReadPermissions) {
 	let type_of = realtypeof(obj);
 
-	if(type_of === 'Object') {
+	if(type_of === 'Object' || type_of === 'Array') { //they both behave the same
 		let props = Object.keys(obj);
 		for(let prop of props) {
 			if(permissions[prop]) { //permissions for this property or sub-properties exists, so a validation is required
@@ -35,18 +35,6 @@ function iterateClear(obj, permissions, clientReadPermissions) {
 				} else {
 					delete obj[prop];
 				}
-			}
-		}
-	}
-	else if(type_of === 'Array') {
-		let arr = obj;
-
-		for(let i = 0; i < arr.length; i++) {
-			let allPermissions = merge({}, permissions['#'], permissions[i]);
-			if(checkPermission(allPermissions, clientReadPermissions)) {
-				iterateClear(arr[i], allPermissions, clientReadPermissions);
-			} else {
-				delete arr[i];
 			}
 		}
 	}

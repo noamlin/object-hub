@@ -55,7 +55,7 @@ var mockIO = {
 		this.rooms = {};
 	}
 };
-if(false) {
+
 test('1. Instantiate OH', () => {
 	let testOH = new Oh('root', undefined, cloneDeep(infrastructure));
 
@@ -374,7 +374,7 @@ test('5. Destroy an OH instance', (done) => {
 		done();
 	});
 });
-}
+
 test('6. Create and send changes to client', (done) => {
 	let delay = 20;
 	let testOH = new Oh('root', undefined, cloneDeep(infrastructure));

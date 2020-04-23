@@ -40,11 +40,12 @@ var ohMain = new Oh('game', server, infrastructure);
 
 ohMain.setPermission('game', 0, 0);
 ohMain.setPermission('game.test', 1, [1,2,3]);
-ohMain.setPermission('game.test.sub', 1, [2,3]);
+ohMain.setPermission('game.test.sub', 2, [2,3]);
 ohMain.setPermission('game.test.sub.secret2', 1, 2);
 ohMain.setPermission('game.test.sub.secret3', 1, 3);
 ohMain.setPermission('game.someObj.someArray', 0, [1,2]);
-ohMain.setPermission('game.someObj.someArray.#.topSecret', 0, 2);
+ohMain.setPermission('game.someObj.someArray[0-5].topSecret', 0, 2);
+ohMain.setPermission('game.table.flop[1]', 3, 3);
 ohMain.setPermission('game.does.not.exist', 4);
 
 ohMain.on('connection', function(socket, clientData, init) {
