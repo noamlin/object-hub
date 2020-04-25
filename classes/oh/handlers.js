@@ -111,25 +111,22 @@ function onObjectChange(changes) {
 	let batches = separate2batches(changes, this.__rootPath); //batches of changes
 	for(changes of batches) {
 		let requiredPermissions = getPathPermissions.call(this, changes[0].path);
-		requiredPermissions = requiredPermissions.reads; //only reading permissions
+		let must = requiredPermissions.reads.must; //only reading permissions
+		let or = requiredPermissions.reads.or; //only reading permissions
 		
 		//TODO - what if new created property is an object with child-objects and the child objects don't get check in the permission check
 
-		if(requiredPermissions.or.length === 0) { //best case where a complete level requires permission, not to specific clients
-			if(requiredPermissions.must.length === 0) {
+		if(or.length === 0 && must.length <= 1) { //best case where a complete level requires permission, not to specific clients
+			if(must.length === 0) {
 				this.__io.to('level_0').emit('change', changes);
 			}
 			else {
-				let ioToClients = this.__io;
-				for(let permission of requiredPermissions.must) {
-					ioToClients = ioToClients.to(`level_${permission}`); //chain rooms
-				}
-				ioToClients.emit('change', changes);
+				this.__io.to(`level_${must[0]}`).emit('change', changes);
 			}
 		}
-		else if(requiredPermissions.or.length === 1 && requiredPermissions.must.length === 0) {
+		else if(or.length === 1 && must.length === 0) {
 			let ioToClients = this.__io;
-			for(let permission of requiredPermissions.or[0]) {
+			for(let permission of or[0]) {
 				ioToClients = ioToClients.to(`level_${permission}`); //chain rooms
 			}
 			ioToClients.emit('change', changes);
@@ -142,7 +139,7 @@ function onObjectChange(changes) {
 				let clientPermissions = socket.OH.permissions.reads;
 
 				let clientSatisfiesMust = true;
-				for(let mustPermission of requiredPermissions.must) {
+				for(let mustPermission of must) {
 					if(!clientPermissions[mustPermission]) {
 						clientSatisfiesMust = false;
 						break;
@@ -152,9 +149,9 @@ function onObjectChange(changes) {
 				let clientSatisfiesOr;
 				if(clientSatisfiesMust) { //this test only matters if client satisfied the 'must' permissions
 					clientSatisfiesOr = true;
-					for(let orPermissions of requiredPermissions.or) {
+					for(let orLevelPermissions of or) {
 						let clientSatisfiesCurrentLevel = false;
-						for(let permission of orPermissions) {
+						for(let permission of orLevelPermissions) {
 							if(clientPermissions[permission]) {
 								clientSatisfiesCurrentLevel = true;
 								break;
@@ -191,13 +188,14 @@ function onClientObjectChange(socket, changes) {
 		let batches = separate2batches(changes);
 		for(changes of batches) {
 			let requiredPermissions = getPathPermissions.call(this, changes[0].path);
-			requiredPermissions = requiredPermissions.writes; //only writing permissions
+			let must = requiredPermissions.writes.must; //only writing permissions
+			let or = requiredPermissions.writes.or; //only writing permissions
 
 			let clientPermissions = socket.OH.permissions.writes;
 			let isPermitted = true;
 
 			//check 'must' permissions
-			for(let permission of requiredPermissions.must) {
+			for(let permission of must) {
 				if(!clientPermissions[permission]) {
 					isPermitted = false;
 					break;
@@ -206,9 +204,9 @@ function onClientObjectChange(socket, changes) {
 
 			if(isPermitted) {
 				//check 'or' permissions
-				for(let orPermissions of requiredPermissions.or) {
+				for(let orLevelPermissions of or) {
 					let clientSatisfiesCurrentLevel = false;
-					for(let permission of orPermissions) {
+					for(let permission of orLevelPermissions) {
 						if(clientPermissions[permission]) {
 							clientSatisfiesCurrentLevel = true;
 							break;

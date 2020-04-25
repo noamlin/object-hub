@@ -68,39 +68,160 @@ test('1. Instantiate OH', () => {
 test('2. Check permissions creation', () => {
 	let testOH = new Oh('root', undefined, cloneDeep(infrastructure));
 
-	let expectedPermissions = { 'root': {'a_number': { __writes: {}, __reads: {} } } };
+	let expectedPermissions = {
+		'root': {
+			'a_number': {}
+		}
+	};
 	testOH.setPermission('root.a_number', 0, 0);
 	expect(testOH.__permissions).toEqual(expectedPermissions);
 
-	expectedPermissions['root']['nested1'] = {'nested2': { __writes: { '4':true }, __reads: { '4':true } } };
+	expectedPermissions['root']['nested1'] = {
+		'nested2': {
+			__writes: { '4': true },
+			__reads: { '4': true },
+			__compiled: {
+				writes: { must: ['4'], or: [] },
+				reads: { must: ['4'], or: [] }
+			}
+		}
+	};
 	testOH.setPermission('root.nested1.nested2', 4, 4);
 	expect(testOH.__permissions).toEqual(expectedPermissions);
 
-	expectedPermissions['root']['nested1']['nested2']['nested3'] = { __writes: { '3':true, '4':true, '5':true }, __reads: { '6':true, '7':true , '8':true } };
+	expectedPermissions['root']['nested1']['nested2']['nested3'] = {
+		__writes: { '3': true, '4': true, '5': true },
+		__reads: { '6': true, '7': true, '8': true },
+		__compiled: {
+			writes: { must: ['4'], or: [] },
+			reads: { must: ['4'], or: [['6','7','8']] }
+		}
+	};
 	testOH.setPermission('root.nested1.nested2.nested3', [0,3,4,5], [0,6,7,8]);
 	expect(testOH.__permissions).toEqual(expectedPermissions);
 
-	//overwriting an existing permission
-	expectedPermissions['root']['nested1']['nested2']['nested3'] = { __writes: { '1':true }, __reads: { '2':true, '3':true } };
-	testOH.setPermission('root.nested1.nested2.nested3', 1, [2,3]);
+	// //overwriting an existing permission
+	expectedPermissions['root']['nested1']['nested2']['nested3'] = {
+		__writes: { '1': true, '3': true },
+		__reads: { '2': true, '3': true },
+		__compiled: {
+			writes: { must: ['4'], or: [['1','3']] },
+			reads: { must: ['4'], or: [['2','3']] }
+		}
+	};
+	testOH.setPermission('root.nested1.nested2.nested3', [1,3], [2,3]);
+	expect(testOH.__permissions).toEqual(expectedPermissions);
+	
+	expectedPermissions['root']['nested1']['nested2'] = {
+		__writes: { '4': true, '5': true, '6': true },
+		__compiled: {
+			writes: { must: [], or: [['4','5','6']] },
+			reads: { must: [], or: [] }
+		},
+		'nested3': {
+			__writes: { '1': true, '3': true },
+			__reads: { '2': true, '3': true },
+			__compiled: {
+				writes: { must: [], or: [['4','5','6'], ['1','3']] },
+				reads: { must: [], or: [['2','3']] }
+			}
+		}
+	};
+	testOH.setPermission('root.nested1.nested2', [4,5,6], 0);
 	expect(testOH.__permissions).toEqual(expectedPermissions);
 
-	expectedPermissions['root']['nested1']['nested2_alt'] = {'#': {'1': { __writes: { '1':true }, __reads: { '1':true } } } };
-	testOH.setPermission('root.nested1.nested2_alt.#.1', 1, 1);
+	expectedPermissions['root']['nested1']['nested2_alt'] = {
+		'0': {
+			'1': {
+				__writes: { '1': true },
+				__reads: { '1': true },
+				__compiled: {
+					writes: { must: ['1'], or: [] },
+					reads: { must: ['1'], or: [] }
+				}
+			}
+		},
+		'1': {
+			'1': {
+				__writes: { '1': true },
+				__reads: { '1': true },
+				__compiled: {
+					writes: { must: ['1'], or: [] },
+					reads: { must: ['1'], or: [] }
+				}
+			}
+		}
+	};
+	testOH.setPermission('root.nested1.nested2_alt[0-1][1]', 1, 1);
 	expect(testOH.__permissions).toEqual(expectedPermissions);
 
-	expectedPermissions['root']['an_arr'] = {'#': {'nestedArr': { __writes: {}, __reads: { '2':true } } } };
-	testOH.setPermission('root.an_arr.#.nestedArr', 0, 2);
+	expectedPermissions['root']['an_arr'] = {
+		'3': {
+			'nestedArr': {
+				__reads: { '6': true, '7': true },
+				__compiled: {
+					writes: { must: [], or: [] },
+					reads: { must: [], or: [['6','7']] }
+				}
+			}
+		},
+		'4': {
+			'nestedArr': {
+				__reads: { '6': true, '7': true },
+				__compiled: {
+					writes: { must: [], or: [] },
+					reads: { must: [], or: [['6','7']] }
+				}
+			}
+		}
+	};
+	testOH.setPermission('root.an_arr[4-3].nestedArr', 0, [6,7]);
 	expect(testOH.__permissions).toEqual(expectedPermissions);
 
-	expectedPermissions['root']['an_arr']['5'] = {'nestedArr': { __writes: {}, __reads: { '3':true } } };
-	testOH.setPermission('root.an_arr.5.nestedArr', 0, 3);
+	expectedPermissions['root']['an_arr']['3']['nestedArr'] = {
+		__reads: { '3': true },
+		__compiled: {
+			writes: { must: [], or: [] },
+			reads: { must: ['3'], or: [] }
+		}
+	};
+	testOH.setPermission('root.an_arr[3].nestedArr', 0, 3);
+	expect(testOH.__permissions).toEqual(expectedPermissions);
+
+	//test recursion of updating child objects of assigned object
+	expectedPermissions['root']['an_arr'] = {
+		__reads: { '6': true },
+		__compiled: {
+			writes: { must: [], or: [] },
+			reads: { must: ['6'], or: [] }
+		},
+		'3': {
+			'nestedArr': {
+				__reads: { '3': true },
+				__compiled: {
+					writes: { must: [], or: [] },
+					reads: { must: ['6','3'], or: [] }
+				}
+			}
+		},
+		'4': {
+			'nestedArr': {
+				__reads: { '6': true, '7': true },
+				__compiled: {
+					writes: { must: [], or: [] },
+					reads: { must: ['6'], or: [] }
+				}
+			}
+		}
+	};
+	testOH.setPermission('root.an_arr', 0, 6);
 	expect(testOH.__permissions).toEqual(expectedPermissions);
 });
 
 test('3. Check client permissions creation', () => {
 	let testOH = new Oh('root', undefined, cloneDeep(infrastructure));
 	let mockSocket = new MockSocket();
+	handlers.onConnection.call(testOH, mockSocket);
 	let id = mockSocket.OH.id;
 
 	testOH.setClientPermissions(mockSocket, 1, 1);
@@ -161,15 +282,16 @@ test('3. Check client permissions creation', () => {
 
 test('4. Create object for client', () => {
 	let testOH = new Oh('root', undefined, cloneDeep(infrastructure));
+	let mockSocket = new MockSocket();
+	handlers.onConnection.call(testOH, mockSocket);
 
 	testOH.setPermission('root.a_number', 0, 1);
 	testOH.setPermission('root.a_string', 0, 0);//on purpose
 	testOH.setPermission('root.nested1.nested2.nested3', 0, [2,3]);
-	testOH.setPermission('root.nested1.nested2_alt.#.1', 0, 1);
-	testOH.setPermission('root.an_arr.#.nestedArr', 0, 2);
-	testOH.setPermission('root.an_arr.5.nestedArr', 0, 3);
-	
-	let mockSocket = new MockSocket();
+	testOH.setPermission('root.nested1.nested2_alt[0-2][1]', 0, 1);
+	testOH.setPermission('root.an_arr[0-5].nestedArr', 0, 2);
+	testOH.setPermission('root.an_arr[5].nestedArr', 0, [2,3]);
+
 	testOH.setClientPermissions(mockSocket, 0);
 	let obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
 	
@@ -290,13 +412,13 @@ test('4. Create object for client', () => {
 	testOH.setPermission('root.allCombinations.obj1', 0, 4);
 	testOH.setPermission('root.allCombinations.obj1.obj2', 0, 5);
 	testOH.setPermission('root.allCombinations.obj1.obj2.arr1', 0, 6);
-	testOH.setPermission('root.allCombinations.obj1.obj2.arr1.3.1', 0, 7);
-	testOH.setPermission('root.allCombinations.obj1.obj2.arr1.#.2', 0, 8);
-	testOH.setPermission('root.allCombinations.obj1.obj2.arr1.3.#', 0, 9);
-	testOH.setPermission('root.allCombinations.obj1.obj2.arr1.3.1.#.obj3', 0, 10);
-	testOH.setPermission('root.allCombinations.obj1.obj2.arr1.3.1.#.obj3.arr2', 0, 11);
-	testOH.setPermission('root.allCombinations.obj1.obj2.arr1.3.1.#.obj3.arr2.#.b', 0, 12);
-	testOH.setPermission('root.allCombinations.obj1.obj2.arr1.3.1.#.obj3.arr2.2.c', 0, 13);
+	testOH.setPermission('root.allCombinations.obj1.obj2.arr1[0-3][0]', 0, 7);
+	testOH.setPermission('root.allCombinations.obj1.obj2.arr1[3][2]', 0, 8);
+	testOH.setPermission('root.allCombinations.obj1.obj2.arr1[3][1]', 0, 9);
+	testOH.setPermission('root.allCombinations.obj1.obj2.arr1[3][1][0].obj3', 0, 10);
+	testOH.setPermission('root.allCombinations.obj1.obj2.arr1[3][1][0].obj3.arr2', 0, 11);
+	testOH.setPermission('root.allCombinations.obj1.obj2.arr1[3][1][0].obj3.arr2[0-2].b', 0, 12);
+	testOH.setPermission('root.allCombinations.obj1.obj2.arr1[3][1][0].obj3.arr2[2].c', 0, 13);
 
 	testOH.setClientPermissions(mockSocket, 0, 0);
 	obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
@@ -316,11 +438,11 @@ test('4. Create object for client', () => {
 
 	testOH.setClientPermissions(mockSocket, 0, [4,5,6,7]);
 	obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
-	expect(obj).toEqual({ root: { allCombinations: { obj1: { obj2: { arr1: [0,1,2, [undefined, [{}], undefined] ] } } } } });
+	expect(obj).toEqual({ root: { allCombinations: { obj1: { obj2: { arr1: [0,1,2, [0, undefined, undefined] ] } } } } });
 
 	testOH.setClientPermissions(mockSocket, 0, [4,5,6,7,8]);
 	obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
-	expect(obj).toEqual({ root: { allCombinations: { obj1: { obj2: { arr1: [0,1,2, [undefined, [{}], 2] ] } } } } });
+	expect(obj).toEqual({ root: { allCombinations: { obj1: { obj2: { arr1: [0,1,2, [0, undefined, 2] ] } } } } });
 
 	testOH.setClientPermissions(mockSocket, 0, [4,5,6,7,8,9]);
 	obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
@@ -348,15 +470,15 @@ test('4. Create object for client', () => {
 
 	testOH.setClientPermissions(mockSocket, 0, [4,5,6, 9]);
 	obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
-	expect(obj).toEqual({ root: { allCombinations: { obj1: { obj2: { arr1: [0,1,2, [0, [{}], 2] ] } } } } });
+	expect(obj).toEqual({ root: { allCombinations: { obj1: { obj2: { arr1: [0,1,2, [undefined, [{}], undefined] ] } } } } });
 
 	testOH.setClientPermissions(mockSocket, 0, [4,5,6, 9, 13]);
 	obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
-	expect(obj).toEqual({ root: { allCombinations: { obj1: { obj2: { arr1: [0,1,2, [0, [{}], 2] ] } } } } });
+	expect(obj).toEqual({ root: { allCombinations: { obj1: { obj2: { arr1: [0,1,2, [undefined, [{}], undefined] ] } } } } });
 
 	testOH.setClientPermissions(mockSocket, 0, [4,5,6, 9,10,11, 13]);
 	obj = prepareObjectForClient.call(testOH, mockSocket.OH.permissions.reads);
-	expect(obj).toEqual({ root: { allCombinations: { obj1: { obj2: { arr1: [0,1,2, [0, [{ obj3: { arr2: [{a:'a',c:'c'}, {a:'x',c:'z'}, {a:'1',c:'3'}] } }], 2] ] } } } } });
+	expect(obj).toEqual({ root: { allCombinations: { obj1: { obj2: { arr1: [0,1,2, [undefined, [{ obj3: { arr2: [{a:'a',c:'c'}, {a:'x',c:'z'}, {a:'1',c:'3'}] } }], undefined] ] } } } } });
 });
 
 //async
@@ -365,7 +487,7 @@ test('5. Destroy an OH instance', (done) => {
 	let testOH = new Oh('root', undefined, anInfrastructure);
 
 	testOH.destroy((originalObject) => {
-		expect(originalObject).toEqual(anInfrastructure);
+		expect(originalObject === anInfrastructure).toEqual(true);
 		expect(typeof testOH.clients).toBe('undefined');
 		expect(typeof testOH.root).toBe('undefined');
 		expect(typeof testOH.__rootPath).toBe('undefined');
@@ -400,7 +522,7 @@ test('6. Create and send changes to client', (done) => {
 				  type: 'update',
 				  value: 2,
 				  oldValue: true,
-				  path: '.root.nested1.nested2.nested3'
+				  path: 'root.nested1.nested2.nested3'
 				}
 			 ]
 		});
@@ -433,7 +555,7 @@ test('6. Create and send changes to client', (done) => {
 						type: 'update',
 						value: 4,
 						oldValue: 3,
-						path: '.root.nested1.nested2.nested3'
+						path: 'root.nested1.nested2.nested3'
 					}
 					]
 			};
@@ -457,7 +579,7 @@ test('6. Create and send changes to client', (done) => {
 						type: 'update',
 						value: 5,
 						oldValue: 4,
-						path: '.root.nested1.nested2.nested3'
+						path: 'root.nested1.nested2.nested3'
 					}
 					]
 			};

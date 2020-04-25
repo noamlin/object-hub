@@ -62,31 +62,32 @@ module.exports = exports = class Oh extends EventEmitter {
 		let pathArr = Proxserve.splitPath(path); //root.sub[1].alt[2] --> [root,sub,1,alt,2]
 		let pathObj = this.__permissions;
 
-		for(let part of pathArr) {
+		for(let part of pathArr) { //traverse to current path's object and also initiate objects if needed
 			if(typeof pathObj[part] !== 'object') {
 				pathObj[part] = {};
 			}
 			pathObj = pathObj[part];
 		}
-		
-		pathObj.__reads = {};
-		pathObj.__writes = {};
 
-		if(!Array.isArray(writes)) {
-			writes = [writes];
-		}
-		for(let write of writes) {
-			if(write !== 0 && write !== '0') {
-				pathObj.__writes[ write ] = true;
+		let newPermissions = { 'writes': writes, 'reads': reads };
+		for(let type of ['writes', 'reads']) {
+			if(!Array.isArray(newPermissions[type])) {
+				newPermissions[type] = [newPermissions[type]]; //convert new permissions to array
 			}
-		}
 
-		if(!Array.isArray(reads)) {
-			reads = [reads];
-		}
-		for(let read of reads) {
-			if(read !== 0 && read !== '0') {
-				pathObj.__reads[ read ] = true;
+			for(let i = newPermissions[type].length - 1; i >= 0; i--) {
+				if(newPermissions[type][i] === 0 || newPermissions[type][i] === '0') {
+					newPermissions[type].splice(i, 1); //delete all zeros
+				}
+			}
+
+			if(newPermissions[type].length >= 1) {
+				pathObj['__'+type] = {};
+				for(let permission of newPermissions[type]) {
+					pathObj['__'+type][ permission ] = true;
+				}
+			} else { //has no own writes
+				delete pathObj['__'+type];
 			}
 		}
 
@@ -133,7 +134,21 @@ module.exports = exports = class Oh extends EventEmitter {
 			}
 		}
 
-		pathObj.__compiled = compiled;
+		let hasOwnPermissions = false;
+		for(let type of types) {
+			if(typeof pathObj['__'+type] === 'object') {
+				if(Object.keys(pathObj['__'+type]).length >= 1) {
+					hasOwnPermissions = true;
+				}
+			}
+		}
+		if(hasOwnPermissions) {
+			pathObj.__compiled = compiled;
+		} else {
+			//reached here via recursion, but this object doesn't have it's own permissions.
+			//sp it doesn't need compiled permissions. instead it will inherit from parent.
+			delete pathObj.__compiled;
+		}
 
 		//update all children that might be affected
 		let keys = Object.keys(pathObj);
