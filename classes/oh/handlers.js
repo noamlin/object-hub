@@ -1,11 +1,12 @@
 "use strict"
 
-const { str2VarName, isNumeric } = require('../../utils/general.js');
+const { str2VarName, splitPath, evalPath } = require('../../utils/general.js');
 const { prepareObjectForClient } = require('./object-manipulations.js');
-const Proxserve = require('proxserve');
+const { cloneDeep } = require('lodash');
 
 /**
- * @param {Object} this - The OH class object
+ * this function must be called with 'this' as the OH class object
+ * @param {Object} socket - the client's socket object
  */
 function onConnection(socket) {
 	socket.OH = {
@@ -17,7 +18,7 @@ function onConnection(socket) {
 	console.log(`socket.io user connected [ID: ${socket.id}]`);
 	this.clients.set(socket.OH.id, socket);
 
-	//MUST BE CALLED. this inits the whole data transmitting to the user
+	//this will init the whole data transmitting to the user
 	let init = () => {
 		let data = {
 			obj: prepareObjectForClient.call(this, socket.OH.permissions.reads),
@@ -28,7 +29,11 @@ function onConnection(socket) {
 		socket.join('level_0'); //join the basic permitted room
 	};
 
-	this.emit('connection', socket, socket.handshake.query, init);
+	if(this.listenerCount('connection') >= 1) {
+		this.emit('connection', socket, socket.handshake.query, init); //listener must call the init function
+	} else {
+		init(); //no listeners, so inits automatically
+	}
 }
 
 function onDisconnection(socket, reason) {
@@ -79,7 +84,7 @@ function separate2batches(changes, prepend2path='') {
  */
 function getPathPermissions(path) {
 	let requiredPermissions = null;
-	let parts = Proxserve.splitPath(path);
+	let parts = splitPath(path);
 	let currentObj = this.__permissions;
 	for(let part of parts) {
 		if(typeof currentObj[part] !== 'undefined') {
@@ -220,50 +225,63 @@ function onClientObjectChange(socket, changes) {
 				}
 			}
 
-			let parts = Proxserve.splitPath(changes[0].path);
-			let currentObj = this;
-			while(typeof currentObj[ parts[0] ] !== 'undefined' && parts.length > 1) {
-				currentObj = currentObj[ parts.shift() ];
-			}
+			try {
+				let {object, property} = evalPath(this, changes[0].path);
 
-			if(parts.length === 1) { //previous loop finished on time
-				for(let change of changes) {
-					if(isPermitted) { //client has writing permission
-						switch(change.type) {
-							case 'create':
-							case 'update':
-								currentObj[ parts[0] ] = change.value;
-								break;
-							case 'delete':
-								delete currentObj[ parts[0] ];
-								break;
+				let commitChanges = (approve=true, reason='Denied: overwritten by server') => {
+					if(Array.isArray(changes)) {
+						if(approve) { //is permitted
+							for(let change of changes) {
+								switch(change.type) {
+									case 'create':
+									case 'update':
+										object[ property ] = change.value;
+										break;
+									case 'delete':
+										delete object[ property ];
+										break;
+								}
+							}
 						}
-					} else { //not permitted
-						switch(change.type) {
-							case 'create':
-								change.oldValue = currentObj[ parts[0] ];
-								change.value = undefined;
-								change.type = 'delete';
-								break;
-							case 'update':
-								change.oldValue = change.value;
-								change.value = currentObj[ parts[0] ];
-								break;
-							case 'delete':
-								change.oldValue = undefined;
-								change.value = currentObj[ parts[0] ];
-								change.type = 'create';
-								break;
+						else { //not approved to make changes, whether because of permissions or listener hook
+							for(let change of changes) {
+								switch(change.type) {
+									case 'create':
+										change.oldValue = object[ property ];
+										change.value = undefined;
+										change.type = 'delete';
+										break;
+									case 'update':
+										change.oldValue = change.value;
+										change.value = object[ property ];
+										break;
+									case 'delete':
+										change.oldValue = undefined;
+										change.value = object[ property ];
+										change.type = 'create';
+										break;
+								}
+								change.reason = reason;
+							}
+		
+							this.__io.to(socket.id).emit('change', changes); //emit previous values to the client
 						}
-						change.reason = 'Denied: no writing permission';
 					}
 				}
 
-				if(!isPermitted) {
-					this.__io.to(socket.id).emit('change', changes); //emit previous values to the unauthorized client
+				if(isPermitted) {
+					if(this.listenerCount('client-change') >= 1) {
+						this.emit('client-change', cloneDeep(changes), socket, commitChanges); //hook to catch client's change before emitting to all clients
+					}
+					else {
+						commitChanges();
+					}
 				}
-			} else {
-				console.error('couldn\'t loop completely over path', change);
+				else { //not permitted
+					commitChanges(false, 'Denied: no writing permission'); //emit previous values to the unauthorized client
+				}
+			} catch(error) {
+				console.error(error);
 			}
 		}
 	} else {

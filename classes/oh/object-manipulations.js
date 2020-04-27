@@ -1,6 +1,6 @@
 "use strict"
 
-const { cloneDeep, merge } = require('lodash');
+const { cloneDeep } = require('lodash');
 const { realtypeof } = require('../../utils/general.js');
 
 /**

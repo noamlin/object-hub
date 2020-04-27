@@ -4,11 +4,11 @@ const EventEmitter = require('events');
 const socketio = require('socket.io');
 const Proxserve = require('proxserve');
 const handlers = require('./handlers.js');
-const { realtypeof, str2VarName } = require('../../utils/general.js');
+const { realtypeof, str2VarName, splitPath, evalPath } = require('../../utils/general.js');
 
 var reservedVariables = ['__rootPath', '__permissions', '__io', 'clients', 'setPermission', 'setClientPermissions', 'destroy'];
 
-module.exports = exports = class Oh extends EventEmitter {
+module.exports = exports = class OH extends EventEmitter {
 	constructor(rootPath, server, infrastructure = {}) {
 		super();
 
@@ -29,7 +29,7 @@ module.exports = exports = class Oh extends EventEmitter {
 			socket.on('change', handlers.onClientObjectChange.bind(this, socket));
 		});
 
-		this[rootPath] = new Proxserve(infrastructure);
+		this[rootPath] = new Proxserve(infrastructure, { delay: 9 });
 		this[rootPath].on('change', handlers.onObjectChange.bind(this));
 	}
 
@@ -244,4 +244,7 @@ module.exports = exports = class Oh extends EventEmitter {
 			});
 		});
 	}
+
+	static splitPath = splitPath;
+	static evalPath = evalPath;
 };

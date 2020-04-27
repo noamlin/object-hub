@@ -1,22 +1,24 @@
 "use strict"
 
+const path = require('path');
+const baseDir = path.resolve(__dirname, '../../');
 const http = require('http');
 const express = require('express');
 const app = express();
-const Oh = require('./index.js');
-const { isNumeric } = require('./utils/general.js');
+const Oh = require(baseDir + '/index.js');
+const { isNumeric } = require(baseDir + '/utils/general.js');
 
 const server = http.createServer(app);
 server.listen(1337);
 
 app.get('/', (req, res) => {
-	res.sendFile(__dirname + '/example.html');
+	res.sendFile(__dirname + '/index.html');
 });
 app.get('/client/oh.js', (req, res) => {
-	res.sendFile(__dirname + '/client/oh.js');
+	res.sendFile(__dirname + '/../../client/oh.js');
 });
 app.get('/proxserve.js', (req, res) => {
-	res.sendFile('/var/www/proxserve/index.js', { root: '/' });
+	res.sendFile('./../../node_modules/proxserve/index.js');
 });
 
 let infrastructure = {

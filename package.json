@@ -6,14 +6,15 @@
 	"main": "index.js",
 	"scripts": {
 		"start": "node index.js",
-		"example": "node example.js",
+		"example-general": "node examples/general/index.js",
+		"example-poker": "node examples/poker/poker.js",
 		"test": "jest"
 	},
 	"dependencies": {
 		"express": "^4.17.1",
 		"lodash": "^4.17.15",
 		"observable-slim": "github:noamlin/observable-slim",
-		"proxserve": "^1.2.0",
+		"proxserve": "^1.2.1",
 		"socket.io": "^2.3.0"
 	},
 	"devDependencies": {

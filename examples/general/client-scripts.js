@@ -1,44 +1,5 @@
-<!DOCTYPE html>
-<html lang="he">
-<head>
-	<meta charset="utf-8">
-	<meta http-equiv="X-UA-Compatible" content="IE=edge">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0">
-	<title>Object Hub</title>
+"use strict";
 
-	<style>
-* {
-	box-sizing: border-box;
-	margin: 0;
-	padding: 0;
-	font-family: Arial, Helvetica, sans-serif;
-}
-html, body {
-	width: 100%;
-}
-table, table > tbody, table > tbody > tr {
-	width: 100%;
-	border-spacing: 0;
-	border-collapse: collapse;
-}
-table > tbody > tr > td {
-	padding: 2px;
-	width: 25%;
-	border: 2px solid black;
-	font-size: 10px;
-	vertical-align: top;
-}
-
-td > input {
-	width: calc(100% - 70px);
-	border: 0;
-}
-	</style>
-
-	<script src="/socket.io/socket.io.js"></script>
-	<script src="/proxserve.js"></script>
-	<script src="/client/oh.js"></script>
-	<script>
 window.addEventListener('DOMContentLoaded', (event) => {
 	var numClients = 4;
 	var OHs = {};
@@ -78,15 +39,3 @@ window.addEventListener('DOMContentLoaded', (event) => {
 		}, 260);
 	}
 });
-	</script>
-<body>
-	<table>
-		<tbody>
-			<tr>
-			</tr>
-			<tr>
-			</tr>
-		</tbody>
-	</table>
-</body>
-</html>
