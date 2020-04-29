@@ -36,19 +36,19 @@ let infrastructure = {
 
 var ohMain = new OH('game', server, infrastructure);
 
-ohMain.setPermission('game', 0, 0);
-ohMain.setPermission('game.test', 1, [1,2,3]);
-ohMain.setPermission('game.test.sub', 2, [2,3]);
-ohMain.setPermission('game.test.sub.secret2', 1, 2);
-ohMain.setPermission('game.test.sub.secret3', 1, 3);
-ohMain.setPermission('game.someObj.someArray', 0, [1,2]);
-ohMain.setPermission('game.someObj.someArray[0-5].topSecret', 0, 2);
-ohMain.setPermission('game.table.flop[1]', 3, 3);
-ohMain.setPermission('game.does.not.exist', 4);
+ohMain.setPermissions('game', 0, 0);
+ohMain.setPermissions('game.test', 1, [1,2,3]);
+ohMain.setPermissions('game.test.sub', 2, [2,3]);
+ohMain.setPermissions('game.test.sub.secret2', 1, 2);
+ohMain.setPermissions('game.test.sub.secret3', 1, 3);
+ohMain.setPermissions('game.someObj.someArray', 0, [1,2]);
+ohMain.setPermissions('game.someObj.someArray[0-5].topSecret', 0, 2);
+ohMain.setPermissions('game.table.flop[1]', 3, 3);
+ohMain.setPermissions('game.does.not.exist', 4);
 
 ohMain.on('connection', function(socket, clientData, init) {
 	let id = socket.OH.id;
-	this.setPermission(`game.players.${id}.secret`, id, id); //only client himself can read/write this secret
+	this.setPermissions(`game.players.${id}.secret`, id, id); //only client himself can read/write this secret
 
 	this.game.players[id] = {
 		name: '',

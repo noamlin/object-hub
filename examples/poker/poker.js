@@ -20,7 +20,7 @@ app.get('/proxserve.js', (req, res) => { res.sendFile(`${baseDir}/node_modules/p
 
 var game = new OH('poker', server, {});
 
-game.setPermission('poker.cards', 'no_one', 'admin');
+game.setPermissions('poker.cards', 'no_one', 'admin');
 
 game.on('connection', function(socket, clientData, init) {
 	if(this.clients.size === 1) {
@@ -43,8 +43,8 @@ game.on('connection', function(socket, clientData, init) {
 	});
 	let insertedID = this.poker.players.length - 1;
 
-	this.setPermission(`poker.players[${insertedID}]`, id); //only client himself can write to this
-	this.setPermission(`poker.players[${insertedID}].personal`, id, id); //only client himself can read & write to this
+	this.setPermissions(`poker.players[${insertedID}]`, id); //only client himself can write to this
+	this.setPermissions(`poker.players[${insertedID}].personal`, id, id); //only client himself can read & write to this
 
 	if(this.clients.size === 1) {
 		this.setClientPermissions(socket, 'admin', 'admin'); //first client to log-in will become admin

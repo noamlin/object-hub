@@ -6,7 +6,7 @@ const Proxserve = require('proxserve');
 const handlers = require('./handlers.js');
 const { realtypeof, str2VarName, splitPath, evalPath } = require('../../utils/general.js');
 
-var reservedVariables = ['__rootPath', '__permissions', '__io', 'clients', 'setPermission', 'setClientPermissions', 'destroy'];
+var reservedVariables = ['__rootPath', '__permissions', '__io', 'clients', 'setPermissions', 'compilePermissions', 'setClientPermissions', 'destroy'];
 
 module.exports = exports = class OH extends EventEmitter {
 	constructor(rootPath, server, infrastructure = {}) {
@@ -41,7 +41,7 @@ module.exports = exports = class OH extends EventEmitter {
 	 * @param {Array|Number|String} writes - writing permissions
 	 * @param {Array|Number|String} [reads] - reading permissions 
 	 */
-	setPermission(path, writes, reads=0) {
+	setPermissions(path, writes, reads=0) {
 		var rangePart = path.match(/\[(\d+)-(\d+)\]/);
 		if(rangePart !== null) {
 			let pathPart1 = path.slice(0, rangePart.index);
@@ -54,7 +54,7 @@ module.exports = exports = class OH extends EventEmitter {
 				max = tmp;
 			}
 			for(let i=min; i<=max; i++) {
-				this.setPermission(`${pathPart1}[${i}]${pathPart2}`, writes, reads);
+				this.setPermissions(`${pathPart1}[${i}]${pathPart2}`, writes, reads);
 			}
 			return;
 		}
@@ -245,6 +245,11 @@ module.exports = exports = class OH extends EventEmitter {
 		});
 	}
 
-	static splitPath = splitPath;
-	static evalPath = evalPath;
+	static splitPath(path) {
+		return splitPath(path);
+	}
+
+	static evalPath(obj, path) {
+		return evalPath(obj, path);
+	}
 };
