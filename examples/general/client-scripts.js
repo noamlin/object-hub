@@ -7,7 +7,7 @@ window.addEventListener('DOMContentLoaded', (event) => {
 	var trObj = document.querySelector('table > tbody > tr:last-child');
 
 	for(let i = 0; i < numClients; i++) {
-		OHs[i] = new Oh('game', {level: i});
+		OHs[i] = new OH('game', {level: i});
 
 		let td = document.createElement('td');
 		let span = document.createElement('span');

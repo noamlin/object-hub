@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0">
+	<title>Object Hub Poker - single client</title>
+
+	<link rel="stylesheet" type="text/css" href="/public-files/styles.css">
+
+	<script src="/socket.io/socket.io.js"></script>
+	<script src="/proxserve.js"></script>
+	<script src="/oh.js"></script>
+
+	<script src="/public-files/scripts.js"></script>
+<body>
+	<div class="login">
+		<input type="text" placeholder="choose a nickname">
+		<button>LOGIN</button>
+	</div>
+
+	<div class="game">
+		Game status: <span class="game-status"></span>
+		<br><br>
+		Now playing: <span class="now-playing"></span>
+		<br><br>
+		TABLE: flop: <span class="flop"></span>, turn: <span class="turn"></span>, river: <span class="river"></span>
+		<br><br>
+		<div class="players"></div>
+		<div class="admin-panel">
+			<br><br>
+			<button>Begin round</button>
+		</div>
+	</div>
+</body>
+</html>

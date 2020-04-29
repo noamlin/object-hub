@@ -1,7 +1,7 @@
 "use strict"
 
-class Oh {
-	constructor(rootPath, clientData) {
+class OH {
+	constructor(rootPath, clientData, afterInitCallback) {
 		this.__rootPath = rootPath;
 		this.id;
 		this.initiated = false;
@@ -18,6 +18,7 @@ class Oh {
 				this[this.__rootPath] = new Proxserve(data.obj[this.__rootPath]);
 				this[this.__rootPath].on('change', this.onObjectChange.bind(this)); //when client alters the object
 				this.initiated = true;
+				afterInitCallback();
 			}
 		});
 

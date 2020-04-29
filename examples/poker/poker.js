@@ -5,103 +5,88 @@ const baseDir = path.resolve(__dirname, '../../');
 const http = require('http');
 const express = require('express');
 const app = express();
-const Oh = require(baseDir + '/index.js');
-const { isNumeric } = require(baseDir + '/utils/general.js');
+const OH = require(`${baseDir}/index.js`);
+const { isNumeric } = require(`${baseDir}/utils/general.js`);
 
 const server = http.createServer(app);
 server.listen(1337);
 
-app.get('/', (req, res) => {
-	res.sendFile(__dirname + '/index.html');
-});
-app.get('/client/oh.js', (req, res) => {
-	res.sendFile(__dirname + '/../../client/oh.js');
-});
-app.get('/proxserve.js', (req, res) => {
-	res.sendFile('./../../node_modules/proxserve/index.js');
-});
+app.use('/public-files', express.static(`${baseDir}/examples/poker/public-files`));
 
-let infrastructure = {
-	players: {},
-	table: {
-		flop: [], turn: 0, river: 0
-	},
-	test: {
-		sub: {
-			secret: 'first can see',
-			secret2: 'second can see',
-			secret3: 'all privileged can see'
-		}
-	},
-	someObj: {
-		someArray: [1, 2, {topSecret: 'a'}, 3, 4, {topSecret: 'b'}]
+app.get('/', (req, res) => { res.sendFile(`${baseDir}/examples/poker/index.html`); });
+app.get('/game.html', (req, res) => { res.sendFile(`${baseDir}/examples/poker/game.html`); });
+app.get('/oh.js', (req, res) => { res.sendFile(`${baseDir}/client/oh.js`); });
+app.get('/proxserve.js', (req, res) => { res.sendFile(`${baseDir}/node_modules/proxserve/index.js`); });
+
+var game = new OH('poker', server, {});
+
+game.setPermission('poker.cards', 'no_one', 'admin');
+
+game.on('connection', function(socket, clientData, init) {
+	if(this.clients.size === 1) {
+		initiateGame();
 	}
-};
+	else if(this.clients.size > 8) {
+		return; //don't connect more than 8 players
+	}
 
-var ohMain = new Oh('game', server, infrastructure);
-
-ohMain.setPermission('game', 0, 0);
-ohMain.setPermission('game.test', 1, [1,2,3]);
-ohMain.setPermission('game.test.sub', 2, [2,3]);
-ohMain.setPermission('game.test.sub.secret2', 1, 2);
-ohMain.setPermission('game.test.sub.secret3', 1, 3);
-ohMain.setPermission('game.someObj.someArray', 0, [1,2]);
-ohMain.setPermission('game.someObj.someArray[0-5].topSecret', 0, 2);
-ohMain.setPermission('game.table.flop[1]', 3, 3);
-ohMain.setPermission('game.does.not.exist', 4);
-
-ohMain.on('connection', function(socket, clientData, init) {
 	let id = socket.OH.id;
-	this.setPermission(`game.players.${id}.secret`, id, id); //only client himself can read/write this secret
 
-	this.game.players[id] = {
-		name: '',
-		age: 0,
-		secret: Math.floor(Math.random()*10000)
-	};
+	this.poker.players.push({
+		id: id,
+		name: clientData.nickname,
+		chips: 1000,
+		personal: {
+			cards: [],
+			auth: 'normal'
+		}
+	});
+	let insertedID = this.poker.players.length - 1;
 
-	if(isNumeric(clientData.level)) {
-		let clientLevel = parseInt(clientData.level);
-		this.setClientPermissions(socket, clientLevel, clientLevel);
+	this.setPermission(`poker.players[${insertedID}]`, id); //only client himself can write to this
+	this.setPermission(`poker.players[${insertedID}].personal`, id, id); //only client himself can read & write to this
+
+	if(this.clients.size === 1) {
+		this.setClientPermissions(socket, 'admin', 'admin'); //first client to log-in will become admin
+		this.poker.players[ this.poker.players.length-1 ].personal.auth = 'admin';
 	}
 
 	init();
 });
-ohMain.on('disconnection', function(socket, reason) {
-	delete this.game.players[socket.OH.id];
+game.on('disconnection', function(socket, reason) {
+	let id = socket.OH.id;
+	for(let i=0; i < this.poker.players.length; i++) {
+		if(this.poker.players[i] && this.poker.players[i].id === id) {
+			this.poker.players[i] = null;
+			//this.poker.players.splice(i, 1);
+			break;
+		}
+	}
+	if(this.clients.size === 0) {
+		initiateGame();
+	}
 });
 
-var loopCount = 0;
-setInterval(() => {
-	switch(loopCount) {
-		case 0:
-			switch(ohMain.game.someObj.someArray[2].topSecret) {
-				case 'a': ohMain.game.someObj.someArray[2].topSecret = 'b'; break;
-				case 'b': ohMain.game.someObj.someArray[2].topSecret = 'c'; break;
-				default: ohMain.game.someObj.someArray[2].topSecret = 'a';
-			}
-			break;
-		case 1:
-			if(Number.isInteger(ohMain.game.table.river)) {
-				if(ohMain.game.table.river === 0) ohMain.game.table.river = 1;
-				else if(ohMain.game.table.river === 1) delete ohMain.game.table.river;
-			} else {
-				ohMain.game.table.river = 0;
-			}
-			break;
-		case 2:
-			if(ohMain.game.exist) {
-				delete ohMain.game.exist;
-			} else {
-				ohMain.game.exist = { inner1: { inner2: true } };
-			}
-			break;
-		case 3:
-			if(ohMain.game.test.sub.secret3 === 'all privileged can see') ohMain.game.test.sub.secret3 = 'all privileged got an update';
-			else ohMain.game.test.sub.secret3 = 'all privileged can see';
-			break;
-	}
-	
-	loopCount++;
-	if(loopCount > 3) loopCount = 0;
-}, 500);
+function initiateGame() {
+	game.poker.players = [];
+	game.poker.table = {
+		flop: [0, 0, 0], turn: 0, river: 0
+	};
+	game.poker.cards = [
+		['ace', 'clubs', true], ['ace', 'diamonds', true], ['ace', 'hearts', true], ['ace', 'spades', true],
+		['2', 'clubs', true], ['2', 'diamonds', true], ['2', 'hearts', true], ['2', 'spades', true],
+		['3', 'clubs', true], ['3', 'diamonds', true], ['3', 'hearts', true], ['3', 'spades', true],
+		['4', 'clubs', true], ['4', 'diamonds', true], ['4', 'hearts', true], ['4', 'spades', true],
+		['5', 'clubs', true], ['5', 'diamonds', true], ['5', 'hearts', true], ['5', 'spades', true],
+		['6', 'clubs', true], ['6', 'diamonds', true], ['6', 'hearts', true], ['6', 'spades', true],
+		['7', 'clubs', true], ['7', 'diamonds', true], ['7', 'hearts', true], ['7', 'spades', true],
+		['8', 'clubs', true], ['8', 'diamonds', true], ['8', 'hearts', true], ['8', 'spades', true],
+		['9', 'clubs', true], ['9', 'diamonds', true], ['9', 'hearts', true], ['9', 'spades', true],
+		['10', 'clubs', true], ['10', 'diamonds', true], ['10', 'hearts', true], ['10', 'spades', true],
+		['jacks', 'clubs', true], ['jacks', 'diamonds', true], ['jacks', 'hearts', true], ['jacks', 'spades', true],
+		['queens', 'clubs', true], ['queens', 'diamonds', true], ['queens', 'hearts', true], ['queens', 'spades', true],
+		['kings', 'clubs', true], ['kings', 'diamonds', true], ['kings', 'hearts', true], ['kings', 'spades', true]
+	];
+	game.poker.status = 'round-end';
+	game.poker.activePlayer = '';
+}
