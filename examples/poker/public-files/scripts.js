@@ -37,14 +37,6 @@ function beginGame() {
 	}
 
 	game.poker.on('change', (changes) => {
-		//TODO - THIS SHOULD NOT HAPPEN. i should not search for myself again and again
-		for(let i=0; i < game.poker.players.length; i++) {
-			if(game.poker.players[i] && game.poker.players[i].id === myID) {
-				me = game.poker.players[i];
-				break;
-			}
-		}
-
 		switch(changes[0].path) {
 			case '.status': updateStatus(); break;
 			case '.activePlayer': updateActivePlayer(); break;

@@ -18,7 +18,9 @@ class OH {
 				this[this.__rootPath] = new Proxserve(data.obj[this.__rootPath]);
 				this[this.__rootPath].on('change', this.onObjectChange.bind(this)); //when client alters the object
 				this.initiated = true;
-				afterInitCallback();
+				if(afterInitCallback) {
+					afterInitCallback();
+				}
 			}
 		});
 

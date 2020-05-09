@@ -14,7 +14,7 @@ server.listen(1337);
 app.use('/public-files', express.static(`${baseDir}/examples/poker/public-files`));
 
 app.get('/', (req, res) => { res.sendFile(`${baseDir}/examples/poker/index.html`); });
-app.get('/game.html', (req, res) => { res.sendFile(`${baseDir}/examples/poker/game.html`); });
+app.get(/\/game\d*.html/, (req, res) => { res.sendFile(`${baseDir}/examples/poker/game.html`); });
 app.get('/oh.js', (req, res) => { res.sendFile(`${baseDir}/client/oh.js`); });
 app.get('/proxserve.js', (req, res) => { res.sendFile(`${baseDir}/node_modules/proxserve/index.js`); });
 
@@ -31,6 +31,10 @@ game.on('connection', function(socket, clientData, init) {
 	}
 
 	let id = socket.OH.id;
+	let playerIndex = this.poker.players.length; //future to be
+
+	this.setPermissions(`poker.players[${playerIndex}]`, id); //only client himself can write to this
+	this.setPermissions(`poker.players[${playerIndex}].personal`, id, id); //only client himself can read & write to this
 
 	this.poker.players.push({
 		id: id,
@@ -41,14 +45,10 @@ game.on('connection', function(socket, clientData, init) {
 			auth: 'normal'
 		}
 	});
-	let insertedID = this.poker.players.length - 1;
-
-	this.setPermissions(`poker.players[${insertedID}]`, id); //only client himself can write to this
-	this.setPermissions(`poker.players[${insertedID}].personal`, id, id); //only client himself can read & write to this
 
 	if(this.clients.size === 1) {
-		this.setClientPermissions(socket, 'admin', 'admin'); //first client to log-in will become admin
-		this.poker.players[ this.poker.players.length-1 ].personal.auth = 'admin';
+		//this.setClientPermissions(socket, 'admin', 'admin'); //first client to log-in will become admin
+		this.poker.players[playerIndex].personal.auth = 'admin';
 	}
 
 	init();

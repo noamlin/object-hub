@@ -1,45 +1,39 @@
 "use strict"
 
-const { str2VarName, splitPath, evalPath } = require('../../utils/general.js');
-const { prepareObjectForClient } = require('./object-manipulations.js');
+const { evalPath } = require('../../utils/general.js');
 const { cloneDeep } = require('lodash');
+const { defaultBasePermission } = require('../permissions/permissions.js');
 
 /**
  * this function must be called with 'this' as the OH class object
- * @param {Object} socket - the client's socket object
+ * @param {Object} client - the client's socket object
  */
-function onConnection(socket) {
-	socket.OH = {
-		id: str2VarName(socket.id),
-		permissions: {}
-	};
-	this.setClientPermissions(socket, 0, 0); //initiate a client with no special read-write permissions
-
-	console.log(`socket.io user connected [ID: ${socket.id}]`);
-	this.clients.set(socket.OH.id, socket);
+function onConnection(client) {
+	console.log(`socket.io user connected [ID: ${client.socket.id}]`);
+	this.clients.set(client.id, client);
 
 	//this will init the whole data transmitting to the user
 	let init = () => {
-		let data = {
-			obj: prepareObjectForClient.call(this, socket.OH.permissions.reads),
-			id: socket.OH.id,
-			reads: socket.OH.permissions.reads
-		};
-		this.__io.to(socket.id).emit('init', data);
-		socket.join('level_0'); //join the basic permitted room
+		setTimeout(() => { //client's connection might triggered changes. don't prepare his initial object until these changes are digested
+			let data = {
+				obj: client.prepareObject(this),
+				id: client.id
+			};
+			this.__io.to(client.socket.id).emit('init', data);
+		}, this.__delay * 2);
 	};
 
 	if(this.listenerCount('connection') >= 1) {
-		this.emit('connection', socket, socket.handshake.query, init); //listener must call the init function
+		this.emit('connection', client, client.socket.handshake.query, init); //listener must call the init function
 	} else {
 		init(); //no listeners, so inits automatically
 	}
 }
 
-function onDisconnection(socket, reason) {
-	this.clients.delete(socket.OH.id);
-	console.log(`socket.io user disconnected [ID: ${socket.id}]`);
-	this.emit('disconnection', socket, reason);
+function onDisconnection(client, reason) {
+	this.clients.delete(client.id);
+	console.log(`socket.io user disconnected [ID: ${client.socket.id}]`);
+	this.emit('disconnection', client, reason);
 }
 
 /**
@@ -79,34 +73,6 @@ function separate2batches(changes, prepend2path='') {
 }
 
 /**
- * get the compiled permissions of a path
- * @param {String} path 
- */
-function getPathPermissions(path) {
-	let requiredPermissions = null;
-	let parts = splitPath(path);
-	let currentObj = this.__permissions;
-	for(let part of parts) {
-		if(typeof currentObj[part] !== 'undefined') {
-			currentObj = currentObj[part];
-			if(typeof currentObj.__compiled === 'object') {
-				requiredPermissions = currentObj.__compiled;
-			}
-		}
-		else {
-			break;
-		}
-	}
-	if(requiredPermissions === null) {
-		requiredPermissions = {
-			writes: { must: [], or: [] },
-			reads: { must: [], or: [] }
-		};
-	}
-	return requiredPermissions;
-}
-
-/**
  * checks permissions and then emits the changes to the corresponding clients
  * @param {Array} changes
  */
@@ -115,19 +81,15 @@ function onObjectChange(changes) {
 
 	let batches = separate2batches(changes, this.__rootPath); //batches of changes
 	for(changes of batches) {
-		let requiredPermissions = getPathPermissions.call(this, changes[0].path);
-		let must = requiredPermissions.reads.must; //only reading permissions
-		let or = requiredPermissions.reads.or; //only reading permissions
+		let requiredPermissions = this.__permissionTree.get(changes[0].path);
+		//we need only reading permissions
+		let must = requiredPermissions.compiled_read.must;
+		let or = requiredPermissions.compiled_read.or;
 		
 		//TODO - what if new created property is an object with child-objects and the child objects don't get check in the permission check
 
 		if(or.length === 0 && must.length <= 1) { //best case where a complete level requires permission, not to specific clients
-			if(must.length === 0) {
-				this.__io.to('level_0').emit('change', changes);
-			}
-			else {
-				this.__io.to(`level_${must[0]}`).emit('change', changes);
-			}
+			this.__io.to(`level_${must[0]}`).emit('change', changes);
 		}
 		else if(or.length === 1 && must.length === 0) {
 			let ioToClients = this.__io;
@@ -140,8 +102,8 @@ function onObjectChange(changes) {
 			let foundClients = false;
 			let ioToClients = this.__io;
 
-			for(let [id, socket] of this.clients) {
-				let clientPermissions = socket.OH.permissions.reads;
+			for(let [id, client] of this.clients) {
+				let clientPermissions = client.permissions;
 
 				let clientSatisfiesMust = true;
 				for(let mustPermission of must) {
@@ -188,15 +150,16 @@ function onObjectChange(changes) {
  * @param {Object} socket 
  * @param {Array} changes 
  */
-function onClientObjectChange(socket, changes) {
+function onClientObjectChange(client, changes) {
 	if(Array.isArray(changes)) {
 		let batches = separate2batches(changes);
 		for(changes of batches) {
 			let requiredPermissions = getPathPermissions.call(this, changes[0].path);
+			//TODO - what if client creates a whole new object that one of his sub-objects requires different permissions and the client is not permitted
 			let must = requiredPermissions.writes.must; //only writing permissions
 			let or = requiredPermissions.writes.or; //only writing permissions
 
-			let clientPermissions = socket.OH.permissions.writes;
+			let clientPermissions = client.permissions.write;
 			let isPermitted = true;
 
 			//check 'must' permissions
@@ -264,14 +227,14 @@ function onClientObjectChange(socket, changes) {
 								change.reason = reason;
 							}
 		
-							this.__io.to(socket.id).emit('change', changes); //emit previous values to the client
+							this.__io.to(client.socket.id).emit('change', changes); //emit previous values to the client
 						}
 					}
 				}
 
 				if(isPermitted) {
 					if(this.listenerCount('client-change') >= 1) {
-						this.emit('client-change', cloneDeep(changes), socket, commitChanges); //hook to catch client's change before emitting to all clients
+						this.emit('client-change', cloneDeep(changes), client, commitChanges); //hook to catch client's change before emitting to all clients
 					}
 					else {
 						commitChanges();

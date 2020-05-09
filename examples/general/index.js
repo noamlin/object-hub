@@ -14,7 +14,7 @@ server.listen(1337);
 app.get('/', (req, res) => { res.sendFile(`${baseDir}/examples/general/index.html`); });
 app.get('/styles.css', (req, res) => { res.sendFile(`${baseDir}/examples/general/styles.css`); });
 app.get('/scripts.js', (req, res) => { res.sendFile(`${baseDir}/examples/general/client-scripts.js`); });
-app.get('/oh.js', (req, res) => { res.sendFile(`${baseDir}/client/oh.js`); });
+app.get('/oh.js', (req, res) => { res.sendFile(`${baseDir}/client-side/oh.js`); });
 app.get('/proxserve.js', (req, res) => { res.sendFile(`${baseDir}/node_modules/proxserve/index.js`); });
 
 let infrastructure = {
@@ -37,17 +37,17 @@ let infrastructure = {
 var ohMain = new OH('game', server, infrastructure);
 
 ohMain.setPermissions('game', 0, 0);
-ohMain.setPermissions('game.test', 1, [1,2,3]);
-ohMain.setPermissions('game.test.sub', 2, [2,3]);
-ohMain.setPermissions('game.test.sub.secret2', 1, 2);
-ohMain.setPermissions('game.test.sub.secret3', 1, 3);
-ohMain.setPermissions('game.someObj.someArray', 0, [1,2]);
-ohMain.setPermissions('game.someObj.someArray[0-5].topSecret', 0, 2);
+ohMain.setPermissions('game.test', [1,2,3], 1);
+ohMain.setPermissions('game.test.sub', [2,3], 2);
+ohMain.setPermissions('game.test.sub.secret2', 2, 1);
+ohMain.setPermissions('game.test.sub.secret3', 3, 1);
+ohMain.setPermissions('game.someObj.someArray', [1,2], 0);
+ohMain.setPermissions('game.someObj.someArray[0-5].topSecret', 2, 0);
 ohMain.setPermissions('game.table.flop[1]', 3, 3);
 ohMain.setPermissions('game.does.not.exist', 4);
 
-ohMain.on('connection', function(socket, clientData, init) {
-	let id = socket.OH.id;
+ohMain.on('connection', function(client, clientData, init) {
+	let id = client.id;
 	this.setPermissions(`game.players.${id}.secret`, id, id); //only client himself can read/write this secret
 
 	this.game.players[id] = {
@@ -58,16 +58,16 @@ ohMain.on('connection', function(socket, clientData, init) {
 
 	if(isNumeric(clientData.level)) {
 		let clientLevel = parseInt(clientData.level);
-		this.setClientPermissions(socket, clientLevel, clientLevel);
+		client.setPermissions(clientLevel, clientLevel);
 	}
 
 	init();
 });
-ohMain.on('disconnection', function(socket, reason) {
-	console.log(`deleting player from game because of: ${reason}`);
-	delete this.game.players[socket.OH.id];
+ohMain.on('disconnection', function(client, reason) {
+	console.log(`deleting client from list because of: ${reason}`);
+	delete this.game.players[client.id];
 });
-ohMain.on('client-change', function(changes, socket, commitClientChanges) {
+ohMain.on('client-change', function(changes, client, commitClientChanges) {
 	let {object, property} = OH.evalPath(this, changes[0].path);
 
 	if(object === this.game && ['foo','bar'].includes(property)) {
@@ -91,13 +91,14 @@ ohMain.on('client-change', function(changes, socket, commitClientChanges) {
 				break;
 		}
 
-		this.game.last_changer = socket.OH.id;
+		this.game.last_changer = client.id;
 	} else {
 		commitClientChanges();
 	}
 });
 
 var loopCount = 0;
+var secret3 = 'can see';
 setInterval(() => {
 	switch(loopCount) {
 		case 0:
@@ -123,8 +124,8 @@ setInterval(() => {
 			}
 			break;
 		case 3:
-			if(ohMain.game.test.sub.secret3 === 'all privileged can see') ohMain.game.test.sub.secret3 = 'all privileged got an update';
-			else ohMain.game.test.sub.secret3 = 'all privileged can see';
+			secret3 = (secret3 === 'can see') ? 'got and update' : 'can see';
+			ohMain.game.test.sub.secret3 = `all privileged ${secret3}`;
 			break;
 	}
 	

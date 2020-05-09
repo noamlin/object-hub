@@ -73,7 +73,7 @@ test('2. Check permissions creation', () => {
 			'a_number': {}
 		}
 	};
-	testOH.setPermissions('root.a_number', 0, 0);
+	testOH.setPermissions('root.a_number', 0, 0, true);
 	expect(testOH.__permissions).toEqual(expectedPermissions);
 
 	expectedPermissions['root']['nested1'] = {
@@ -86,7 +86,7 @@ test('2. Check permissions creation', () => {
 			}
 		}
 	};
-	testOH.setPermissions('root.nested1.nested2', 4, 4);
+	testOH.setPermissions('root.nested1.nested2', 4, 4, true);
 	expect(testOH.__permissions).toEqual(expectedPermissions);
 
 	expectedPermissions['root']['nested1']['nested2']['nested3'] = {
@@ -97,7 +97,7 @@ test('2. Check permissions creation', () => {
 			reads: { must: ['4'], or: [['6','7','8']] }
 		}
 	};
-	testOH.setPermissions('root.nested1.nested2.nested3', [0,3,4,5], [0,6,7,8]);
+	testOH.setPermissions('root.nested1.nested2.nested3', [0,3,4,5], [0,6,7,8], true);
 	expect(testOH.__permissions).toEqual(expectedPermissions);
 
 	// //overwriting an existing permission
@@ -109,7 +109,7 @@ test('2. Check permissions creation', () => {
 			reads: { must: ['4'], or: [['2','3']] }
 		}
 	};
-	testOH.setPermissions('root.nested1.nested2.nested3', [1,3], [2,3]);
+	testOH.setPermissions('root.nested1.nested2.nested3', [1,3], [2,3], true);
 	expect(testOH.__permissions).toEqual(expectedPermissions);
 	
 	expectedPermissions['root']['nested1']['nested2'] = {
@@ -127,7 +127,7 @@ test('2. Check permissions creation', () => {
 			}
 		}
 	};
-	testOH.setPermissions('root.nested1.nested2', [4,5,6], 0);
+	testOH.setPermissions('root.nested1.nested2', [4,5,6], 0, true);
 	expect(testOH.__permissions).toEqual(expectedPermissions);
 
 	expectedPermissions['root']['nested1']['nested2_alt'] = {
@@ -152,7 +152,7 @@ test('2. Check permissions creation', () => {
 			}
 		}
 	};
-	testOH.setPermissions('root.nested1.nested2_alt[0-1][1]', 1, 1);
+	testOH.setPermissions('root.nested1.nested2_alt[0-1][1]', 1, 1, true);
 	expect(testOH.__permissions).toEqual(expectedPermissions);
 
 	expectedPermissions['root']['an_arr'] = {
@@ -175,7 +175,7 @@ test('2. Check permissions creation', () => {
 			}
 		}
 	};
-	testOH.setPermissions('root.an_arr[4-3].nestedArr', 0, [6,7]);
+	testOH.setPermissions('root.an_arr[4-3].nestedArr', 0, [6,7], true);
 	expect(testOH.__permissions).toEqual(expectedPermissions);
 
 	expectedPermissions['root']['an_arr']['3']['nestedArr'] = {
@@ -185,7 +185,7 @@ test('2. Check permissions creation', () => {
 			reads: { must: ['3'], or: [] }
 		}
 	};
-	testOH.setPermissions('root.an_arr[3].nestedArr', 0, 3);
+	testOH.setPermissions('root.an_arr[3].nestedArr', 0, 3, true);
 	expect(testOH.__permissions).toEqual(expectedPermissions);
 
 	//test recursion of updating child objects of assigned object
@@ -214,7 +214,7 @@ test('2. Check permissions creation', () => {
 			}
 		}
 	};
-	testOH.setPermissions('root.an_arr', 0, 6);
+	testOH.setPermissions('root.an_arr', 0, 6, true);
 	expect(testOH.__permissions).toEqual(expectedPermissions);
 });
 
