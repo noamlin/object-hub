@@ -4,15 +4,16 @@ const Proxserve = require('proxserve');
 const { splitPath, realtypeof } = require('../../utils/general.js');
 
 var defaultBasePermission = 0;
+var __permissions = Symbol('the permissions data property');
 
 class PermissionTree {
 	constructor() {
 		//initiate empty object on parent in order to always have something to inherit from
-		this.__permissions = {
+		this[__permissions] = {
 			read: new Set(),
 			write: new Set(),
-			compiled_read: { must: [], or: [] },
-			compiled_write: { must: [], or: [] }
+			compiled_read: { must: new Set(), or: [] },
+			compiled_write: { must: new Set(), or: [] }
 		};
 	}
 
@@ -51,9 +52,8 @@ class PermissionTree {
 		//traverse to current path's object and also initiate objects if needed
 		for(let part of pathArr) {
 			if(typeof pathObj[part] !== 'object') {
-				pathObj[part] = {
-					__permissions: Object.create(pathObj.__permissions)
-				};
+				pathObj[part] = {};
+				pathObj[part][__permissions] = Object.create(pathObj[__permissions]);
 			}
 			pathObj = pathObj[part];
 		}
@@ -68,17 +68,17 @@ class PermissionTree {
 			}
 
 			if(typeofRW === 'Null') { //null read or write forces delete
-				delete pathObj.__permissions[type];
+				delete pathObj[__permissions][type];
 			}
 			else { //normal read/write
 				if(typeofRW !== 'Array') { //convert new permissions to array
 					RW[type] = [RW[type]];
 				}
 	
-				pathObj.__permissions[type] = new Set();
+				pathObj[__permissions][type] = new Set();
 
 				for(let permission of RW[type]) {
-					pathObj.__permissions[type].add(permission);
+					pathObj[__permissions][type].add(permission);
 				}
 			}
 
@@ -96,19 +96,19 @@ class PermissionTree {
 	 */
 	compile(pathArr, type) {
 		let pathObj = this;
-		let pathPermissions = pathObj.__permissions[type];
+		let pathPermissions = pathObj[__permissions][type];
 		let compiled = { must: new Set(), or: [] };
 
 		for(let part of pathArr) {
 			pathObj = pathObj[part]; //current part of path (current parent)
 
-			if(pathObj.__permissions[type] === pathPermissions) { //same permissions of parent, meaning this level doesn't have its own permissions
+			if(pathObj[__permissions][type] === pathPermissions) { //same permissions of parent, meaning this level doesn't have its own permissions
 				continue;
 			}
-			pathPermissions = pathObj.__permissions[type];
+			pathPermissions = pathObj[__permissions][type];
 
 			let PPiter = pathPermissions.values(); //pathPermissions iterator
-			if(!pathPermissions.has(defaultBasePermission)) {
+			if(!pathPermissions.has(defaultBasePermission)) { //default is required meaning this level, as part of the compilation, is redundant
 				if(pathPermissions.size === 1) {
 					let permission = PPiter.next().value;
 					if(!compiled.must.has(permission)) {
@@ -140,25 +140,23 @@ class PermissionTree {
 		}
 
 		let hasOwnPermissions = false;
-		if(typeof pathObj.__permissions[type] === 'object' && Object.keys(pathObj.__permissions[type]).length >= 1) {
+		if(realtypeof(pathObj[__permissions][type]) === 'Set' && pathObj[__permissions][type].size >= 1) {
 			hasOwnPermissions = true;
 		}
 		
 		if(hasOwnPermissions) {
-			pathObj.__permissions[`compiled_${type}`] = compiled;
+			pathObj[__permissions][`compiled_${type}`] = compiled;
 		} else {
 			//reached here via recursion, but this object doesn't have it's own permissions
 			//so it doesn't need compiled permissions. instead it will inherit from parent.
-			delete pathObj.__permissions[`compiled_${type}`];
+			delete pathObj[__permissions][`compiled_${type}`];
 		}
 
 		//update all children that might be affected. brute force.. inefficient..
 		//but it doesn't matter because it runs once whenever setting/updating new permissions, and not during actual runtime
 		let keys = Object.keys(pathObj);
 		for(let key of keys) {
-			if(key !== '__permissions') {
-				this.compile.call(pathArr.concat(key), type);
-			}
+			this.compile(pathArr.concat(key), type);
 		}
 	}
 
@@ -179,7 +177,7 @@ class PermissionTree {
 			}
 		}
 		
-		return currentObj.__permissions;
+		return currentObj[__permissions];
 	}
 }
 
@@ -268,8 +266,8 @@ class ClientPermissions {
 	 */
 	verify(permissionsNode) {
 		if(typeof permissionsNode === 'object') {
-			let reads = Object.keys(permissionsNode.__permissions.read);
-			if(reads.length > 0) { //there is a permission required
+			let reads = permissionsNode[__permissions].read;
+			if(reads.size >= 1) { //there is a permission required
 				for(let permission of reads) {
 					if(this.read.has(permission)) { //client has the permission for this category
 						return true;

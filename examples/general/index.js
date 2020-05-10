@@ -39,6 +39,7 @@ var ohMain = new OH('game', server, infrastructure);
 ohMain.setPermissions('game', 0, 0);
 ohMain.setPermissions('game.test', [1,2,3], 1);
 ohMain.setPermissions('game.test.sub', [2,3], 2);
+ohMain.setPermissions('game.test.sub.secret', 5);
 ohMain.setPermissions('game.test.sub.secret2', 2, 1);
 ohMain.setPermissions('game.test.sub.secret3', 3, 1);
 ohMain.setPermissions('game.someObj.someArray', [1,2], 0);
@@ -49,17 +50,25 @@ ohMain.setPermissions('game.does.not.exist', 4);
 ohMain.on('connection', function(client, clientData, init) {
 	let id = client.id;
 	this.setPermissions(`game.players.${id}.secret`, id, id); //only client himself can read/write this secret
+	
+	let clientLevel = 0;
+	if(isNumeric(clientData.level)) {
+		clientLevel = parseInt(clientData.level);
+	}
+
+	let names = ['John','Oliver','Mike','Larry','Austin'];
 
 	this.game.players[id] = {
-		name: '',
+		name: names[clientLevel],
 		age: 0,
 		secret: Math.floor(Math.random()*10000)
 	};
 
-	if(isNumeric(clientData.level)) {
-		let clientLevel = parseInt(clientData.level);
-		client.setPermissions(clientLevel, clientLevel);
+	let RWpermissions = clientLevel;
+	if(clientLevel % 2 === 0) {
+		RWpermissions = [clientLevel, 5];
 	}
+	client.setPermissions(RWpermissions, RWpermissions);
 
 	init();
 });
@@ -98,7 +107,7 @@ ohMain.on('client-change', function(changes, client, commitClientChanges) {
 });
 
 var loopCount = 0;
-var secret3 = 'can see';
+var secret;
 setInterval(() => {
 	switch(loopCount) {
 		case 0:
@@ -124,8 +133,9 @@ setInterval(() => {
 			}
 			break;
 		case 3:
-			secret3 = (secret3 === 'can see') ? 'got and update' : 'can see';
-			ohMain.game.test.sub.secret3 = `all privileged ${secret3}`;
+			secret = (secret === 'can see') ? 'got and update' : 'can see';
+			ohMain.game.test.sub.secret = `[1,2,3] & [2,3] ${secret}`;
+			ohMain.game.test.sub.secret3 = `all privileged ${secret}`;
 			break;
 	}
 	
