@@ -24,7 +24,16 @@ function onConnection(client) {
 	};
 
 	if(this.listenerCount('connection') >= 1) {
-		this.emit('connection', client, client.socket.handshake.query, init); //listener must call the init function
+		let clientData;
+		if(client.socket.handshake.query && client.socket.handshake.query.data) {
+			try {
+				clientData = JSON.parse(client.socket.handshake.query.data);
+			} catch(error) {
+				console.error(error);
+				console.error(`Can't JSON.parse client's data of client ${client.id}`);
+			}
+		}
+		this.emit('connection', client, clientData, init); //listener must call the init function
 	} else {
 		init(); //no listeners, so inits automatically
 	}
@@ -191,7 +200,7 @@ function onClientObjectChange(client, changes) {
 			}
 
 			try {
-				let {object, property} = evalPath(this, changes[0].path);
+				let {object, property} = evalPath(changes[0].path, this);
 
 				let commitChanges = (approve=true, reason='Denied: overwritten by server') => {
 					if(Array.isArray(changes)) {

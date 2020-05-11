@@ -43,7 +43,7 @@ function shuffle(arr) {
 /**
  * return a string representing the full type of the variable
  * @param {*} variable 
- * @returns {String} - Object, Array, Number, String, Boolean, Null, Undefined, BigInt, Symbol, Date ...
+ * @returns {String} - 'Object', 'Array', 'Number', 'String', 'Boolean', 'Null', 'Undefined', 'BigInt', 'Symbol', 'Date' ...
  */
 function realtypeof(variable) {
 	let rawType = Object.prototype.toString.call(variable); //[object Object], [object Array], [object Number] ...
@@ -61,10 +61,10 @@ function isNumeric(variable) {
 
 /**
  * evaluate a long path and return the designated object and its referred property
- * @param {Object} obj 
- * @param {String} path 
+ * @param {String} path
+ * @param {Object} obj
  */
-function evalPath(obj, path) {
+function evalPath(path, obj) {
 	let segments = Proxserve.splitPath(path);
 	let i;
 	for(i = 0; i <= segments.length - 2; i++) { //iterate until one before last property because they all must exist

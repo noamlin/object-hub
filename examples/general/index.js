@@ -18,68 +18,91 @@ app.get('/oh.js', (req, res) => { res.sendFile(`${baseDir}/client-side/oh.js`); 
 app.get('/proxserve.js', (req, res) => { res.sendFile(`${baseDir}/node_modules/proxserve/index.js`); });
 
 let infrastructure = {
-	players: {},
-	table: {
-		flop: [], turn: 0, river: 0
+	free_for_all: {
+		regular_object: {
+			primitive1: 1,
+			primitive2: 'a',
+			primitive3: true
+		},
+		an_array: [1, 'a', true]
 	},
-	test: {
-		sub: {
-			secret: 'first can see',
-			secret2: 'second can see',
-			secret3: 'all privileged can see'
+	must: {
+		one: 'this requires one permission',
+		two: 'this requires two different permissions'
+	},
+	or: {
+		one: 'this requires authorization over one level',
+		two: 'this requires authorization over two different levels'
+	},
+	must_and_or: {
+		must: {
+			or: {
+				must: [
+					{ or: 0 },
+					{ or: 1 },
+					{ or: 2 }
+				]
+			}
+		},
+		or: {
+			must: {
+				or: [
+					{ must: 0 },
+					{ must: 1 },
+					{ must: 2 }
+				]
+			}
 		}
 	},
-	someObj: {
-		someArray: [1, 2, {topSecret: 'a'}, 3, 4, {topSecret: 'b'}]
-	}
+	dynamic: {}
 };
 
-var ohMain = new OH('game', server, infrastructure);
+var myOH = new OH('demo', server, infrastructure);
 
-ohMain.setPermissions('game', 0, 0);
-ohMain.setPermissions('game.test', [1,2,3], 1);
-ohMain.setPermissions('game.test.sub', [2,3], 2);
-ohMain.setPermissions('game.test.sub.secret', 5);
-ohMain.setPermissions('game.test.sub.secret2', 2, 1);
-ohMain.setPermissions('game.test.sub.secret3', 3, 1);
-ohMain.setPermissions('game.someObj.someArray', [1,2], 0);
-ohMain.setPermissions('game.someObj.someArray[0-5].topSecret', 2, 0);
-ohMain.setPermissions('game.table.flop[1]', 3, 3);
-ohMain.setPermissions('game.does.not.exist', 4);
+myOH.setPermissions('demo', 0, 0);
+myOH.setPermissions('demo.must', 1, 1);
+myOH.setPermissions('demo.must.two', 2, 2);
+myOH.setPermissions('demo.or', [2,3,4], [3,4]);
+myOH.setPermissions('demo.or.two', [3,4,'admin'], 4);
+myOH.setPermissions('demo.must_and_or', null, null);
+myOH.setPermissions('demo.must_and_or.must', 1, 1);
+myOH.setPermissions('demo.must_and_or.must.or', [2,3]);
+myOH.setPermissions('demo.must_and_or.must.or.must', 4);
+myOH.setPermissions('demo.must_and_or.must.or.must[0-1].or', [5,6]);
+myOH.setPermissions('demo.must_and_or.must.or.must[2].or', [7,8]);
+myOH.setPermissions('demo.must_and_or.or', [1,2], [1,2]);
+myOH.setPermissions('demo.must_and_or.or.must', 3);
+myOH.setPermissions('demo.must_and_or.or.must.or', [4,5]);
+myOH.setPermissions('demo.must_and_or.or.must.or[1-2].must', 6, 6);
+myOH.setPermissions('demo.must_and_or.or.must.or[0].must', 7, 7);
 
-ohMain.on('connection', function(client, clientData, init) {
-	let id = client.id;
-	this.setPermissions(`game.players.${id}.secret`, id, id); //only client himself can read/write this secret
+myOH.on('connection', function(client, clientData, init) {
+	if(clientData) {
+		let id = client.id;
+		this.setPermissions(`demo.dynamic.${id}.secret`, id, id); //only client himself can read/write this secret
 	
-	let clientLevel = 0;
-	if(isNumeric(clientData.level)) {
-		clientLevel = parseInt(clientData.level);
+		this.demo.dynamic[id] = {
+			name: clientData.name,
+			age: Math.floor(Math.random()*30+20),
+			secret: Math.floor(Math.random()*10000)
+		};
+	
+		client.setPermissions(clientData.levels, clientData.levels);
 	}
-
-	let names = ['John','Oliver','Mike','Larry','Austin'];
-
-	this.game.players[id] = {
-		name: names[clientLevel],
-		age: 0,
-		secret: Math.floor(Math.random()*10000)
-	};
-
-	let RWpermissions = clientLevel;
-	if(clientLevel % 2 === 0) {
-		RWpermissions = [clientLevel, 5];
+	else {
+		console.error('Client connected with missing data');
 	}
-	client.setPermissions(RWpermissions, RWpermissions);
 
 	init();
 });
-ohMain.on('disconnection', function(client, reason) {
+myOH.on('disconnection', function(client, reason) {
 	console.log(`deleting client from list because of: ${reason}`);
-	delete this.game.players[client.id];
+	delete this.demo.dynamic[client.id];
 });
-ohMain.on('client-change', function(changes, client, commitClientChanges) {
-	let {object, property} = OH.evalPath(this, changes[0].path);
+myOH.on('client-change', function(changes, client, commitClientChanges) {
+	let {object, property} = OH.evalPath(changes[0].path);
 
-	if(object === this.game && ['foo','bar'].includes(property)) {
+	if(object === this.demo && ['foo','bar'].includes(property)) {
 		//switch between 'foo' and 'bar', and also print who commited the change
 		commitClientChanges(false);
 
@@ -100,45 +123,32 @@ ohMain.on('client-change', function(changes, client, commitClientChanges) {
 				break;
 		}
 
-		this.game.last_changer = client.id;
+		this.demo.last_changer = this.demo.dynamic[client.id].name;
 	} else {
 		commitClientChanges();
 	}
 });
 
 var loopCount = 0;
-var secret;
 setInterval(() => {
 	switch(loopCount) {
 		case 0:
-			switch(ohMain.game.someObj.someArray[2].topSecret) {
-				case 'a': ohMain.game.someObj.someArray[2].topSecret = 'b'; break;
-				case 'b': ohMain.game.someObj.someArray[2].topSecret = 'c'; break;
-				default: ohMain.game.someObj.someArray[2].topSecret = 'a';
-			}
+			myOH.demo.free_for_all.regular_object.primitive2 = 'a';
+			myOH.demo.free_for_all.an_array[2] = true;
 			break;
 		case 1:
-			if(Number.isInteger(ohMain.game.table.river)) {
-				if(ohMain.game.table.river === 0) ohMain.game.table.river = 1;
-				else if(ohMain.game.table.river === 1) delete ohMain.game.table.river;
-			} else {
-				ohMain.game.table.river = 0;
-			}
+			myOH.demo.free_for_all.regular_object.primitive2 = 'b';
+			delete myOH.demo.free_for_all.an_array[2];
 			break;
 		case 2:
-			if(ohMain.game.exist) {
-				delete ohMain.game.exist;
-			} else {
-				ohMain.game.exist = { inner1: { inner2: true } };
-			}
+			myOH.demo.free_for_all.regular_object.primitive2 = 'c';
+			myOH.demo.free_for_all.an_array[2] = false;
 			break;
 		case 3:
-			secret = (secret === 'can see') ? 'got and update' : 'can see';
-			ohMain.game.test.sub.secret = `[1,2,3] & [2,3] ${secret}`;
-			ohMain.game.test.sub.secret3 = `all privileged ${secret}`;
+			myOH.demo.free_for_all.regular_object.primitive2 = 'd';
+			delete myOH.demo.free_for_all.an_array[2];
 			break;
 	}
 	
-	loopCount++;
-	if(loopCount > 3) loopCount = 0;
+	loopCount = (loopCount > 3) ? 0 : loopCount+1;
 }, 500);

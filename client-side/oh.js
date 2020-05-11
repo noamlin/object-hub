@@ -9,7 +9,7 @@ class OH {
 		
 		this.socket = io(`/object-hub/${rootPath}`, {
 			autoConnect: true,
-			query: clientData
+			query: { data: JSON.stringify(clientData) }
 		});
 
 		this.socket.on('init', (data) => { //gets initiated with data from the server

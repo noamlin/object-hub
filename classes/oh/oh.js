@@ -83,7 +83,16 @@ module.exports = exports = class OH extends EventEmitter {
 		return splitPath(path);
 	}
 
-	static evalPath(obj, path) {
-		return evalPath(obj, path);
+	/**
+	 * evaluate path according to the OH object or according to another specific object
+	 * @param {String} path
+	 * @param {Object} [obj]
+	 * @returns {Object} - returns {obj, property}
+	 */
+	static evalPath(path, obj) {
+		if(!obj) {
+			obj = this;
+		}
+		return evalPath(path, obj);
 	}
 };
