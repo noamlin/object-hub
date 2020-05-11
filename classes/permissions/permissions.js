@@ -197,11 +197,7 @@ class ClientPermissions {
 
 		this.read = new Set();
 		this.write = new Set();
-
-		for(let permission of this.defaultPermissions) {
-			this.read.add(permission);
-			this.write.add(permission);
-		}
+		//Notice - must call 'this.set' at least once in order to apply the default permissions
 	}
 
 	/**
