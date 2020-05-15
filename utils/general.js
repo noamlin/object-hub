@@ -61,10 +61,10 @@ function isNumeric(variable) {
 
 /**
  * evaluate a long path and return the designated object and its referred property
- * @param {String} path
  * @param {Object} obj
+ * @param {String} path
  */
-function evalPath(path, obj) {
+function evalPath(obj, path) {
 	let segments = Proxserve.splitPath(path);
 	let i;
 	for(i = 0; i <= segments.length - 2; i++) { //iterate until one before last property because they all must exist

@@ -1,5 +1,6 @@
 "use strict"
 
+const ohInstances = require('./instances.js');
 const { evalPath } = require('../../utils/general.js');
 const { cloneDeep } = require('lodash');
 const { defaultBasePermission } = require('../permissions/permissions.js');
@@ -9,7 +10,7 @@ const { defaultBasePermission } = require('../permissions/permissions.js');
  * @param {Object} client - the client's socket object
  */
 function onConnection(client) {
-	console.log(`socket.io user connected [ID: ${client.socket.id}]`);
+	if(process.env.OH_DEBUG) console.log(`socket.io user connected [ID: ${client.socket.id}]`);
 	this.clients.set(client.id, client);
 
 	//this will init the whole data transmitting to the user
@@ -19,8 +20,8 @@ function onConnection(client) {
 				obj: client.prepareObject(this),
 				id: client.id
 			};
-			this.__io.to(client.socket.id).emit('init', data);
-		}, this.__delay * 2);
+			this.io.to(client.socket.id).emit('init', data);
+		}, this.delay * 2);
 	};
 
 	if(this.listenerCount('connection') >= 1) {
@@ -41,7 +42,7 @@ function onConnection(client) {
 
 function onDisconnection(client, reason) {
 	this.clients.delete(client.id);
-	console.log(`socket.io user disconnected [ID: ${client.socket.id}]`);
+	if(process.env.OH_DEBUG) console.log(`socket.io user disconnected [ID: ${client.socket.id}]`);
 	this.emit('disconnection', client, reason);
 }
 
@@ -57,15 +58,13 @@ function onDisconnection(client, reason) {
  * hopefully these changes will always belong to one batch (all changes will have the same path.
  * like the batch of changes created from array manipulation)
  * @param {Array.Change} changes
- * @param {String} [prepend2path] - prepend a property name to all paths
  */
-function separate2batches(changes, prepend2path='') {
+function separate2batches(changes) {
 	let batches = [];
 	let lastPath;
 	let lastIndex = -1;
 
 	for(let i=0; i < changes.length; i++) {
-		changes[i].path = `${prepend2path}${changes[i].path}`;
 		if(lastIndex === -1) {
 			lastPath = changes[i].path;
 			lastIndex = i;
@@ -88,9 +87,9 @@ function separate2batches(changes, prepend2path='') {
 function onObjectChange(changes) {
 	if(changes.length === 0) return;
 
-	let batches = separate2batches(changes, this.__rootPath); //batches of changes
+	let batches = separate2batches(changes); //batches of changes
 	for(changes of batches) {
-		let requiredPermissions = this.__permissionTree.get(changes[0].path);
+		let requiredPermissions = this.permissionTree.get(changes[0].path);
 		//we need only reading permissions
 		let must = requiredPermissions.compiled_read.must;
 		let or = requiredPermissions.compiled_read.or;
@@ -99,13 +98,13 @@ function onObjectChange(changes) {
 
 		if(or.length === 0 && must.size <= 1) { //best case where a complete level requires permission, not to specific clients
 			if(must.size === 0) {
-				this.__io.to(`level_${defaultBasePermission}`).emit('change', changes);
+				this.io.to(`level_${defaultBasePermission}`).emit('change', changes);
 			} else if(must.size === 1) {
-				this.__io.to(`level_${must.values().next().value}`).emit('change', changes);
+				this.io.to(`level_${must.values().next().value}`).emit('change', changes);
 			}
 		}
 		else if(or.length === 1 && must.size === 0) {
-			let ioToClients = this.__io;
+			let ioToClients = this.io;
 			for(let permission of or[0]) {
 				ioToClients = ioToClients.to(`level_${permission}`); //chain rooms
 			}
@@ -113,7 +112,7 @@ function onObjectChange(changes) {
 		}
 		else { //check every client and chain them to an IO object that will message them
 			let foundClients = false;
-			let ioToClients = this.__io;
+			let ioToClients = this.io;
 
 			for(let [id, client] of this.clients) {
 				let clientSatisfiesMust = true;
@@ -163,9 +162,11 @@ function onObjectChange(changes) {
  */
 function onClientObjectChange(client, changes) {
 	if(Array.isArray(changes)) {
+		let proxy = ohInstances.getProxy(this);
 		let batches = separate2batches(changes);
+
 		for(changes of batches) {
-			let requiredPermissions = this.__permissionTree.get(changes[0].path);
+			let requiredPermissions = this.permissionTree.get(changes[0].path);
 			//TODO - what if client creates a whole new object that one of his sub-objects requires different permissions and the client is not permitted
 			let must = requiredPermissions.compiled_write.must; //only writing permissions
 			let or = requiredPermissions.compiled_write.or; //only writing permissions
@@ -200,7 +201,7 @@ function onClientObjectChange(client, changes) {
 			}
 
 			try {
-				let {object, property} = evalPath(changes[0].path, this);
+				let {object, property} = evalPath(changes[0].path, proxy);
 
 				let commitChanges = (approve=true, reason='Denied: overwritten by server') => {
 					if(Array.isArray(changes)) {
@@ -238,7 +239,7 @@ function onClientObjectChange(client, changes) {
 								change.reason = reason;
 							}
 		
-							this.__io.to(client.socket.id).emit('change', changes); //emit previous values to the client
+							this.io.to(client.socket.id).emit('change', changes); //emit previous values to the client
 						}
 					}
 				}

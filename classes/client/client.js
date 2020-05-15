@@ -1,5 +1,6 @@
 "use strict";
 
+const ohInstances = require('../oh/instances.js');
 const { ClientPermissions, defaultBasePermission } = require('../permissions/permissions.js');
 const { str2VarName, realtypeof } = require('../../utils/general.js');
 const { cloneDeep } = require('lodash');
@@ -34,11 +35,17 @@ module.exports = exports = class Client {
 	 * @param {Object} oh - the OH instance
 	 */
 	prepareObject(oh) {
-		let obj = {};
-		obj[oh.__rootPath] = cloneDeep(oh[oh.__rootPath]);
+		let proxy = ohInstances.getProxy(oh);
 
-		this.iterateClear(obj, oh.__permissionTree, this.permissions.read);
-		return obj;
+		//special test if client even has permissions to access the root object
+		if(!this.permissions.verify(oh.permissionTree)) {
+			return {};
+		}
+		else {
+			let obj = cloneDeep(proxy);
+			this.iterateClear(obj, oh.permissionTree);
+			return obj;
+		}
 	}
 
 	/**

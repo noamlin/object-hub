@@ -1,25 +1,27 @@
 "use strict"
 
 class OH {
-	constructor(rootPath, clientData, afterInitCallback) {
-		this.__rootPath = rootPath;
+	constructor(domain, clientData, afterInitCallback) {
+		this.domain = domain;
 		this.id;
 		this.initiated = false;
 		this.isServerUpdate = false;
 		
-		this.socket = io(`/object-hub/${rootPath}`, {
+		this.socket = io(`/oh-${domain}`, {
 			autoConnect: true,
 			query: { data: JSON.stringify(clientData) }
 		});
 
 		this.socket.on('init', (data) => { //gets initiated with data from the server
 			this.id = data.id;
-			if(data.obj && data.obj[this.__rootPath]) {
-				this[this.__rootPath] = new Proxserve(data.obj[this.__rootPath]);
-				this[this.__rootPath].on('change', this.onObjectChange.bind(this)); //when client alters the object
+			if(data.obj) {
+				this.object = new Proxserve(data.obj);
+				this.object.on('change', (changes) => {
+					this.onObjectChange(changes); //when client alters the object
+				});
 				this.initiated = true;
 				if(afterInitCallback) {
-					afterInitCallback();
+					afterInitCallback(this.object);
 				}
 			}
 		});
@@ -34,12 +36,12 @@ class OH {
 	updateObject(changes) {
 		if(Array.isArray(changes)) {
 			//all changes are queueq for 10 ms and then fired to all listeners. so we will flag to stop our next listener call
-			//preventing infinite loop of emitting the changes from server back to the server
+			//preventing infinite loop of emitting the changes we got from the server back to the server
 			this.isServerUpdate = true;
 
 			for(let change of changes) {
 				let parts = Proxserve.splitPath(change.path);
-				let currObj = this;
+				let currObj = this.object;
 
 				while(typeof currObj[ parts[0] ] !== 'undefined' && parts.length > 1) {
 					currObj = currObj[ parts.shift() ];
@@ -77,9 +79,6 @@ class OH {
 			return;
 		}
 
-		for(let i=0; i < changes.length; i++) {
-			changes[i].path = `${this.__rootPath}${changes[i].path}`;
-		}
 		this.socket.emit('change', changes);
 	}
 };

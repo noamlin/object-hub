@@ -1,6 +1,7 @@
 "use strict"
 
 const EventEmitter = require('events');
+const ohInstances = require('./instances.js');
 const socketio = require('socket.io');
 const Proxserve = require('proxserve');
 const Client = require('../client/client.js');
@@ -8,33 +9,22 @@ const { PermissionTree } = require('../permissions/permissions.js');
 const handlers = require('./handlers.js');
 const { str2VarName, splitPath, evalPath } = require('../../utils/general.js');
 
-var reservedVariables = ['__rootPath', '__permissionTree', '__io', '__delay', 'clients', 'setPermissions', 'setClientPermissions', 'destroy'];
-
-module.exports = exports = class OH extends EventEmitter {
-	constructor(rootPath, server, infrastructure = {}) {
+class OHinstance extends EventEmitter {
+	constructor(domain, io) {
 		super();
 
-		if(str2VarName(rootPath) !== rootPath) {
-			throw new Error('root path must match a valid object\'s property name');
-		} else if(reservedVariables.indexOf(rootPath) !== -1) {
-			throw new Error('root path is system reserved');
-		}
-
-		this.__rootPath = rootPath;
-		this.__permissionTree = new PermissionTree();
+		this.domain = domain;
+		this.io = io;
+		this.delay = 9;
+		this.permissionTree = new PermissionTree();
 		this.clients = new Map();
-		this.__io = socketio(server).of(`/object-hub/${rootPath}`);
-		this.__delay = 9;
 
-		this.__io.on('connection', (socket) => {
+		this.io.on('connection', (socket) => {
 			let client = new Client(socket); //initiate a client with default read-write permissions and sign him to rooms
 			handlers.onConnection.call(this, client);
 			socket.on('disconnect', handlers.onDisconnection.bind(this, client));
 			socket.on('change', handlers.onClientObjectChange.bind(this, client));
 		});
-
-		this[rootPath] = new Proxserve(infrastructure, { delay: this.__delay });
-		this[rootPath].on('change', handlers.onObjectChange.bind(this));
 	}
 
 	/**
@@ -42,25 +32,22 @@ module.exports = exports = class OH extends EventEmitter {
 	 * @param {Function} [cb] - a callback function
 	 */
 	destroy(cb) {
-		let originalObj = this[this.__rootPath].getOriginalTarget();
+		let proxy = ohInstances.getProxy(this);
+		let originalObj = proxy.getOriginalTarget();
 		setImmediate(() => {
 			//first disconnect all clients and trigger all 'disconnection' events which might still be using the proxy object
-			let socketsKeys = Object.keys(this.__io.connected);
+			let socketsKeys = Object.keys(this.io.connected);
 			for(let key of socketsKeys) {
-				this.__io.connected[key].disconnect(true);
+				this.io.connected[key].disconnect(true);
 			}
-			this.__io.removeAllListeners('connection');
+			this.io.removeAllListeners('connection');
 			this.clients.clear();
 
 			setImmediate(() => {
-				Proxserve.destroy(this[this.__rootPath]);
+				Proxserve.destroy(proxy);
+				delete this.io;
 
 				setImmediate(() => {
-					delete this[this.__rootPath];
-					for(let item of reservedVariables) {
-						delete this[item];
-					}
-
 					if(typeof cb === 'function') {
 						cb( originalObj );
 					}
@@ -76,23 +63,46 @@ module.exports = exports = class OH extends EventEmitter {
 	 * @param {Array|Number|String|Null} [write] - writing permissions. 'Null' for deletion
 	 */
 	setPermissions(path, read, write) {
-		this.__permissionTree.set(path, read, write);
+		this.permissionTree.set(path, read, write);
+	}
+};
+
+module.exports = exports = class OH {
+	constructor(domain, server, infrastructure = {}) {
+		if(str2VarName(domain) !== domain) {
+			throw new Error('root path must match a valid object\'s property name');
+		}
+
+		let theInstance = new OHinstance(domain, socketio(server).of(`/oh-${domain}`));
+		let proxy = new Proxserve(infrastructure, { delay: theInstance.delay });
+		ohInstances.set(proxy, theInstance);
+		proxy.on('change', handlers.onObjectChange.bind(theInstance));
+		return proxy;
 	}
 
+	/**
+	 * use the proxy's instance
+	 * @param {Proxy} proxy 
+	 */
+	static use(proxy) {
+		return ohInstances.getInstance(proxy);
+	}
+
+	/**
+	 * split's path to an array of segments
+	 * @param {String} path 
+	 */
 	static splitPath(path) {
 		return splitPath(path);
 	}
 
 	/**
 	 * evaluate path according to the OH object or according to another specific object
+	 * @param {Object|Proxy} obj
 	 * @param {String} path
-	 * @param {Object} [obj]
 	 * @returns {Object} - returns {obj, property}
 	 */
-	static evalPath(path, obj) {
-		if(!obj) {
-			obj = this;
-		}
-		return evalPath(path, obj);
+	static evalPath(obj, path) {
+		return evalPath(obj, path);
 	}
 };

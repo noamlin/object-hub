@@ -4,11 +4,11 @@ const Proxserve = require('proxserve');
 const { splitPath, realtypeof } = require('../../utils/general.js');
 
 var defaultBasePermission = 0;
-var __permissions = Symbol('the permissions data property');
+var __permissions = Symbol.for('permissions_property');
 
 class PermissionTree {
 	constructor() {
-		//initiate empty object on parent in order to always have something to inherit from
+		//initiate empty object on base object (top parent) in order to always have something to inherit from
 		this[__permissions] = {
 			read: new Set(),
 			write: new Set(),
@@ -46,11 +46,13 @@ class PermissionTree {
 		}
 
 		//handle regular path
-		let pathArr = Proxserve.splitPath(path); //root.sub[1].alt[2] --> [root,sub,1,alt,2]
 		let pathObj = this;
+		let pathArr = Proxserve.splitPath(path); //root.sub[1].alt[2] --> [root,sub,1,alt,2]
 
 		//traverse to current path's object and also initiate objects if needed
 		for(let part of pathArr) {
+			if(part === '') continue; //empty path means root object so we need to skip this iteration because pathObj[''] will create a new object
+
 			if(typeof pathObj[part] !== 'object') {
 				pathObj[part] = {};
 				pathObj[part][__permissions] = Object.create(pathObj[__permissions]);
@@ -59,15 +61,14 @@ class PermissionTree {
 		}
 
 		//handle actual reads/writes
-		let RW = { 'write': write, 'read': read };
-		for(let type of ['write', 'read']) {
+		let RW = { 'read': read, 'write': write };
+		for(let type of ['read', 'write']) {
 			let typeofRW = realtypeof(RW[type]);
 
 			if(typeofRW === 'Undefined') { //do nothing for undefined read or write
 				continue;
 			}
-
-			if(typeofRW === 'Null') { //null read or write forces delete
+			else if(typeofRW === 'Null') { //null read or write forces delete
 				delete pathObj[__permissions][type];
 			}
 			else { //normal read/write
@@ -95,17 +96,22 @@ class PermissionTree {
 	 * @param {String} type - 'read' or 'write'
 	 */
 	compile(pathArr, type) {
+		if(pathArr[0] !== '') {
+			pathArr.unshift(''); //force iterating over root object too
+		}
 		let pathObj = this;
 		let pathPermissions = pathObj[__permissions][type];
 		let compiled = { must: new Set(), or: [] };
 
 		for(let part of pathArr) {
-			pathObj = pathObj[part]; //current part of path (current parent)
+			if(part !== '') {
+				pathObj = pathObj[part]; //current part of path (current parent)
 
-			if(pathObj[__permissions][type] === pathPermissions) { //same permissions of parent, meaning this level doesn't have its own permissions
-				continue;
+				if(pathObj[__permissions][type] === pathPermissions) { //same permissions of parent, meaning this level doesn't have its own permissions
+					continue;
+				}
+				pathPermissions = pathObj[__permissions][type];
 			}
-			pathPermissions = pathObj[__permissions][type];
 
 			let PPiter = pathPermissions.values(); //pathPermissions iterator
 			if(!pathPermissions.has(defaultBasePermission)) { //default is required meaning this level, as part of the compilation, is redundant
