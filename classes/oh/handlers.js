@@ -3,7 +3,6 @@
 const ohInstances = require('./instances.js');
 const { evalPath } = require('../../utils/general.js');
 const { cloneDeep } = require('lodash');
-const { defaultBasePermission } = require('../permissions/permissions.js');
 
 /**
  * this function must be called with 'this' as the OH class object
@@ -81,11 +80,19 @@ function separate2batches(changes) {
 }
 
 /**
+ * DONT FORGET I CANCELED ALL EMITS FOR TESTING
+ */
+
+/**
  * checks permissions and then emits the changes to the corresponding clients
  * @param {Array} changes
  */
 function onObjectChange(changes) {
 	if(changes.length === 0) return;
+
+	if(changes[0].type !== 'create' && typeof changes[0].value === 'object') {
+		console.log(changes[0]);
+	}
 
 	let batches = separate2batches(changes); //batches of changes
 	for(changes of batches) {
@@ -98,9 +105,9 @@ function onObjectChange(changes) {
 
 		if(or.length === 0 && must.size <= 1) { //best case where a complete level requires permission, not to specific clients
 			if(must.size === 0) {
-				this.io.to(`level_${defaultBasePermission}`).emit('change', changes);
+				//this.io.to(`level_${defaultBasePermission}`).emit('change', changes);
 			} else if(must.size === 1) {
-				this.io.to(`level_${must.values().next().value}`).emit('change', changes);
+				//this.io.to(`level_${must.values().next().value}`).emit('change', changes);
 			}
 		}
 		else if(or.length === 1 && must.size === 0) {
@@ -108,7 +115,7 @@ function onObjectChange(changes) {
 			for(let permission of or[0]) {
 				ioToClients = ioToClients.to(`level_${permission}`); //chain rooms
 			}
-			ioToClients.emit('change', changes);
+			//ioToClients.emit('change', changes);
 		}
 		else { //check every client and chain them to an IO object that will message them
 			let foundClients = false;
@@ -149,7 +156,7 @@ function onObjectChange(changes) {
 			}
 
 			if(foundClients) {
-				ioToClients.emit('change', changes);
+				//ioToClients.emit('change', changes);
 			}
 		}
 	}
@@ -201,7 +208,7 @@ function onClientObjectChange(client, changes) {
 			}
 
 			try {
-				let {object, property} = evalPath(changes[0].path, proxy);
+				let {object, property} = evalPath(proxy, changes[0].path);
 
 				let commitChanges = (approve=true, reason='Denied: overwritten by server') => {
 					if(Array.isArray(changes)) {

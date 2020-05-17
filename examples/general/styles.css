@@ -7,26 +7,44 @@
 html,
 body {
   width: 100%;
+  height: 100%;
 }
-table,
-table > tbody,
-table > tbody > tr {
-  width: 100%;
-  border-spacing: 0;
-  border-collapse: collapse;
+body {
+  display: flex;
+  flex-wrap: wrap;
 }
-table > td,
-table > tbody > td,
-table > tbody > tr > td {
-  padding: 2px;
-  width: 25%;
-  border: 2px solid black;
-  font-size: 10px;
-  vertical-align: top;
+client-block {
+  display: inline-block;
+  width: 33.3%;
+  height: 50%;
+  border: 1px solid black;
 }
-table > td > input,
-table > tbody > td > input,
-table > tbody > tr > td > input {
-  width: calc(100% - 70px);
+:host(client-block) {
+  font-size: 11px;
+}
+:host(client-block) div.info,
+:host(client-block) div.editor {
+  border-bottom: 1px solid #96dcff;
+  padding: 0 3px;
+}
+:host(client-block) div.info {
+  height: 22px;
+  line-height: 22px;
+}
+:host(client-block) div.editor {
+  height: 22px;
+  line-height: 22px;
+}
+:host(client-block) div.editor input {
+  height: 17px;
   border: 0;
+  width: calc(100% - 70px);
+  font-size: 11px;
+}
+:host(client-block) div.viewer {
+  height: calc(100% - 44px);
+  overflow: auto;
+}
+:host(client-block) div.viewer pre {
+  font-size: 10px;
 }

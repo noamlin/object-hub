@@ -37,8 +37,7 @@ module.exports = exports = class Client {
 	prepareObject(oh) {
 		let proxy = ohInstances.getProxy(oh);
 
-		//special test if client even has permissions to access the root object
-		if(!this.permissions.verify(oh.permissionTree)) {
+		if(!this.permissions.verify(oh.permissionTree)) { //check if client even has permissions to access the root object
 			return {};
 		}
 		else {

@@ -26,30 +26,30 @@ let infrastructure = {
 		},
 		an_array: [1, true, 'a']
 	},
-	must: {
-		one: 'this requires one permission',
-		two: 'this requires two different permissions'
+	must_1: {
+		open: 'this requires one permission',
+		must_2: 'this requires two different permissions'
 	},
-	or: {
-		one: 'this requires authorization over one level',
-		two: 'this requires authorization over two different levels'
+	or_34: {
+		open: 'this requires authorization over one level',
+		or_12: 'this requires authorization over two different levels'
 	},
 	must_and_or: {
-		must: {
-			or: {
-				must: [
-					{ or: 0 },
-					{ or: 1 },
-					{ or: 2 }
+		must_1: {
+			or_23: {
+				must_4: [
+					{ or_56: 0 },
+					{ or_56: 1 },
+					{ or_78: 2 }
 				]
 			}
 		},
-		or: {
-			must: {
-				or: [
-					{ must: 0 },
-					{ must: 1 },
-					{ must: 2 }
+		or_12: {
+			must_3: {
+				or_45: [
+					{ must_7: 0 },
+					{ must_6: 1 },
+					{ must_6: 2 }
 				]
 			}
 		}
@@ -59,27 +59,27 @@ let infrastructure = {
 
 var demo = new OH('demo', server, infrastructure);
 
-OH.use(demo).setPermissions('', 9, 0);
-OH.use(demo).setPermissions('must', 1, 1);
-OH.use(demo).setPermissions('must.two', 2, 2);
-OH.use(demo).setPermissions('or', [2,3,4], [3,4]);
-OH.use(demo).setPermissions('or.two', [3,4,'admin'], 4);
+OH.use(demo).setPermissions('', 0, 0);
+OH.use(demo).setPermissions('must_1', 1, 1);
+OH.use(demo).setPermissions('must_1.must_2', 2, 2);
+OH.use(demo).setPermissions('or_34', [3,4], [3,4]);
+OH.use(demo).setPermissions('or_34.or_12', [1,2], 4);
 OH.use(demo).setPermissions('must_and_or', null, null);
-OH.use(demo).setPermissions('must_and_or.must', 1, 1);
-OH.use(demo).setPermissions('must_and_or.must.or', [2,3]);
-OH.use(demo).setPermissions('must_and_or.must.or.must', 4);
-OH.use(demo).setPermissions('must_and_or.must.or.must[0-1].or', [5,6]);
-OH.use(demo).setPermissions('must_and_or.must.or.must[2].or', [7,8]);
-OH.use(demo).setPermissions('must_and_or.or', [1,2], [1,2]);
-OH.use(demo).setPermissions('must_and_or.or.must', 3);
-OH.use(demo).setPermissions('must_and_or.or.must.or', [4,5]);
-OH.use(demo).setPermissions('must_and_or.or.must.or[1-2].must', 6, 6);
-OH.use(demo).setPermissions('must_and_or.or.must.or[0].must', 7, 7);
+OH.use(demo).setPermissions('must_and_or.must_1', 1, 1);
+OH.use(demo).setPermissions('must_and_or.must_1.or_23', [2,3]);
+OH.use(demo).setPermissions('must_and_or.must_1.or_23.must_4', 4);
+OH.use(demo).setPermissions('must_and_or.must_1.or_23.must_4[0-1].or_56', [5,6]);
+OH.use(demo).setPermissions('must_and_or.must_1.or_23.must_4[2].or_78', [7,8]);
+OH.use(demo).setPermissions('must_and_or.or_12', [1,2], [1,2]);
+OH.use(demo).setPermissions('must_and_or.or_12.must_3', 3);
+OH.use(demo).setPermissions('must_and_or.or_12.must_3.or_45', [4,5]);
+OH.use(demo).setPermissions('must_and_or.or_12.must_3.or_45[1-2].must_6', 6, 6);
+OH.use(demo).setPermissions('must_and_or.or_12.must_3.or_45[0].must_7', 7, 7);
 
 OH.use(demo).on('connection', function(client, clientData, init) {
 	if(clientData) {
 		let id = client.id;
-		this.setPermissions(`demo.dynamic.${id}.secret`, id, id); //only client himself can read/write this secret
+		this.setPermissions(`dynamic.${id}.secret`, id, id); //only client himself can read/write this secret
 	
 		demo.dynamic[id] = {
 			name: clientData.name,
