@@ -1,8 +1,9 @@
 "use strict"
 
 const ohInstances = require('./instances.js');
-const { evalPath } = require('../../utils/general.js');
+const { evalPath, spread } = require('../../utils/change-events.js');
 const { cloneDeep } = require('lodash');
+const { defaultBasePermission } = require('../permissions/permissions.js');
 
 /**
  * this function must be called with 'this' as the OH class object
@@ -10,11 +11,11 @@ const { cloneDeep } = require('lodash');
  */
 function onConnection(client) {
 	if(process.env.OH_DEBUG) console.log(`socket.io user connected [ID: ${client.socket.id}]`);
-	this.clients.set(client.id, client);
 
 	//this will init the whole data transmitting to the user
 	let init = () => {
 		setTimeout(() => { //client's connection might triggered changes. don't prepare his initial object until these changes are digested
+			this.clients.set(client.id, client);
 			let data = {
 				obj: client.prepareObject(this),
 				id: client.id
@@ -80,15 +81,13 @@ function separate2batches(changes) {
 }
 
 /**
- * DONT FORGET I CANCELED ALL EMITS FOR TESTING
- */
-
-/**
  * checks permissions and then emits the changes to the corresponding clients
  * @param {Array} changes
  */
 function onObjectChange(changes) {
-	if(changes.length === 0) return;
+	if(!Array.isArray(changes) && changes.length === 0) return;
+
+	spread(changes);
 
 	if(changes[0].type !== 'create' && typeof changes[0].value === 'object') {
 		console.log(changes[0]);
@@ -105,9 +104,9 @@ function onObjectChange(changes) {
 
 		if(or.length === 0 && must.size <= 1) { //best case where a complete level requires permission, not to specific clients
 			if(must.size === 0) {
-				//this.io.to(`level_${defaultBasePermission}`).emit('change', changes);
+				this.io.to(`level_${defaultBasePermission}`).emit('change', changes);
 			} else if(must.size === 1) {
-				//this.io.to(`level_${must.values().next().value}`).emit('change', changes);
+				this.io.to(`level_${must.values().next().value}`).emit('change', changes);
 			}
 		}
 		else if(or.length === 1 && must.size === 0) {
@@ -115,7 +114,7 @@ function onObjectChange(changes) {
 			for(let permission of or[0]) {
 				ioToClients = ioToClients.to(`level_${permission}`); //chain rooms
 			}
-			//ioToClients.emit('change', changes);
+			ioToClients.emit('change', changes);
 		}
 		else { //check every client and chain them to an IO object that will message them
 			let foundClients = false;
@@ -156,7 +155,7 @@ function onObjectChange(changes) {
 			}
 
 			if(foundClients) {
-				//ioToClients.emit('change', changes);
+				ioToClients.emit('change', changes);
 			}
 		}
 	}

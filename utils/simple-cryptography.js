@@ -1,6 +1,6 @@
 "use strict"
 
-const { shuffle } = require('./general.js');
+const { shuffle } = require('./variables.js');
 
 const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()[]{} <>:;_+-="\'.,/?';
 

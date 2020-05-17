@@ -1,6 +1,6 @@
 "use strict"
 
-const { str2VarName, shuffle, realtypeof, isNumeric, splitPath, evalPath } = require('../utils/general.js');
+const { str2VarName, shuffle, realtypeof, isNumeric } = require('../utils/variables.js');
 
 test('convert string of chars to valid variable name', () => {
 	expect(str2VarName('a1bc2')).toBe('a1bc2');
@@ -44,29 +44,4 @@ test('check if value is numeric', () => {
 	expect(isNumeric('1n')).toBe(false);
 	expect(isNumeric('.')).toBe(false);
 	expect(isNumeric('.2')).toBe(true);
-});
-
-test('splitPath method', () => {
-	expect(splitPath('ab.cd.ef')).toEqual(['ab','cd','ef']);
-	expect(splitPath('ab.cd[1].ef[2][3]')).toEqual(['ab','cd','1','ef','2','3']);
-});
-
-test('evalPath method', () => {
-	let obj = {
-		aa: {
-			bb: {
-				cc: 123
-			}
-		}
-	};
-	expect(evalPath(obj, 'aa.bb.cc')).toEqual({ object: { cc:123 }, property: 'cc' });
-	expect(evalPath(obj, 'aa.bb')).toEqual({ object: { bb: { cc:123 } }, property: 'bb' });
-
-	obj.dd = {
-		ee: [
-			0, [0, [0,1,2], 2], 2
-		]
-	};
-	expect(evalPath(obj, 'dd.ee[1][1][2]')).toEqual({ object: [0,1,2], property: '2' });
-	expect(evalPath(obj, 'dd.ee[1][1]')).toEqual({ object: [0, [0,1,2], 2], property: '1' });
 });

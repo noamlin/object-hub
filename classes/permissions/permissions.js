@@ -1,7 +1,8 @@
 "use strict";
 
 const Proxserve = require('proxserve');
-const { splitPath, realtypeof } = require('../../utils/general.js');
+const { realtypeof } = require('../../utils/variables.js');
+const { splitPath } = require('../../utils/change-events.js');
 
 var defaultBasePermission = 0;
 var __permissions = Symbol.for('permissions_property');

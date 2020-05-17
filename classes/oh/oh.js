@@ -7,7 +7,8 @@ const Proxserve = require('proxserve');
 const Client = require('../client/client.js');
 const { PermissionTree } = require('../permissions/permissions.js');
 const handlers = require('./handlers.js');
-const { str2VarName, splitPath, evalPath } = require('../../utils/general.js');
+const { str2VarName } = require('../../utils/variables.js');
+const { splitPath, evalPath } = require('../../utils/change-events.js');
 
 class OHinstance extends EventEmitter {
 	constructor(domain, io) {

@@ -1,6 +1,7 @@
+/**
+ * utilities for variables manipulations and type reading
+ */
 "use strict";
-
-const Proxserve = require('proxserve');
 
 function str2VarName(id) {
 	let acceptableChars = {
@@ -59,28 +60,9 @@ function isNumeric(variable) {
 	else return !isNaN(variable);
 }
 
-/**
- * evaluate a long path and return the designated object and its referred property
- * @param {Object} obj
- * @param {String} path
- */
-function evalPath(obj, path) {
-	let segments = Proxserve.splitPath(path);
-	let i;
-	for(i = 0; i <= segments.length - 2; i++) { //iterate until one before last property because they all must exist
-		obj = obj[segments[i]];
-		if(typeof obj === 'undefined') {
-			throw new Error('Invalid path was given');
-		}
-	}
-	return { object: obj, property: segments[i] };
-}
-
 module.exports = exports = {
 	str2VarName: str2VarName,
 	shuffle: shuffle,
 	realtypeof: realtypeof,
-	isNumeric: isNumeric,
-	splitPath: Proxserve.splitPath,
-	evalPath: evalPath
+	isNumeric: isNumeric
 };

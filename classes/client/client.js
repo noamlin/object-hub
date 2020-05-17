@@ -2,7 +2,7 @@
 
 const ohInstances = require('../oh/instances.js');
 const { ClientPermissions, defaultBasePermission } = require('../permissions/permissions.js');
-const { str2VarName, realtypeof } = require('../../utils/general.js');
+const { str2VarName, realtypeof } = require('../../utils/variables.js');
 const { cloneDeep } = require('lodash');
 
 module.exports = exports = class Client {

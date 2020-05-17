@@ -6,7 +6,7 @@ const http = require('http');
 const express = require('express');
 const app = express();
 const OH = require(`${baseDir}/index.js`);
-const { isNumeric } = require(`${baseDir}/utils/general.js`);
+const { isNumeric } = require(`${baseDir}/utils/variables.js`);
 
 const server = http.createServer(app);
 server.listen(1337);
