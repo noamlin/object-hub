@@ -3,6 +3,7 @@
 const Proxserve = require('proxserve');
 const { realtypeof } = require('../../utils/variables.js');
 const { splitPath } = require('../../utils/change-events.js');
+const { isEqual } = require('lodash');
 
 var defaultBasePermission = 0;
 var __permissions = Symbol.for('permissions_property');
@@ -169,9 +170,10 @@ class PermissionTree {
 
 	/**
 	 * get the permissions of a path
-	 * @param {String} path 
+	 * @param {String} path
+	 * @param {Boolean} [nodeOnly]
 	 */
-	get(path) {
+	get(path, nodeOnly=false) {
 		let parts = splitPath(path);
 		let currentObj = this;
 
@@ -184,7 +186,34 @@ class PermissionTree {
 			}
 		}
 		
+		if(nodeOnly) {
+			return currentObj;
+		}
 		return currentObj[__permissions];
+	}
+
+	/**
+	 * compare the paths of different changes and see if they all have the same permissions
+	 * @param {Array.Object} changes
+	 * @param {String} type - 'read' or 'write'
+	 */
+	comparePaths(changes, type) {
+		let previousPermissions;
+
+		for(let change of changes) {
+			let currentPermissions = this.get(change.path);
+
+			if(!previousPermissions) {
+				previousPermissions = currentPermissions;
+			}
+			else if(currentPermissions[`compiled_${type}`] !== previousPermissions[`compiled_${type}`]) { //if not inheriting the same object
+				if(!isEqual(currentPermissions[`compiled_${type}`], previousPermissions[`compiled_${type}`])) { //if not somehow two different compilations of the same permissions
+					return false;
+				}
+			}
+		}
+
+		return true;
 	}
 }
 
@@ -266,21 +295,56 @@ class ClientPermissions {
 	/**
 	 * check for permission-object (received via path) if client is permitted to read it
 	 * @param {Object} permissionsNode
+	 * @param {String} type - 'read' or 'write'
+	 * @param {Boolean} [compiled] - verify against current node premission or compiled-with-parents permissions
 	 */
-	verify(permissionsNode) {
-		if(typeof permissionsNode === 'object') {
-			let reads = permissionsNode[__permissions].read;
-			if(reads.size >= 1) { //there is a permission required
-				for(let permission of reads) {
-					if(this.read.has(permission)) { //client has the permission for this category
+	verify(permissionsNode, type, compiled=true) {
+		if(compiled) {
+			let must = permissionsNode[__permissions][`compiled_${type}`].must;
+			let or = permissionsNode[__permissions][`compiled_${type}`].or;
+
+			let clientSatisfiesMust = true;
+			for(let mustPermission of must) {
+				if(!this[type].has(mustPermission)) {
+					clientSatisfiesMust = false;
+					break;
+				}
+			}
+
+			let clientSatisfiesOr;
+			if(clientSatisfiesMust) { //this test only matters if client satisfied the 'must' permissions
+				clientSatisfiesOr = true;
+				for(let orLevelPermissions of or) {
+					let clientSatisfiesCurrentLevel = false;
+					for(let permission of orLevelPermissions) {
+						if(this[type].has(permission)) {
+							clientSatisfiesCurrentLevel = true;
+							break;
+						}
+					}
+
+					if(!clientSatisfiesCurrentLevel) {
+						clientSatisfiesOr = false;
+						break;
+					}
+				}
+			}
+			
+			return clientSatisfiesMust && clientSatisfiesOr;
+		}
+		else {
+			let perms = permissionsNode[__permissions][type];
+			if(perms.size >= 1) { //there is a permission required
+				for(let permission of perms) {
+					if(this[type].has(permission)) { //client has the permission for this category
 						return true;
 					}
 				}
 				return false; //we matched no permission
 			}
-		}
 
-		return true; //this category doesn't require permissions
+			return true; //this category doesn't require permissions
+		}
 	}
 }
 

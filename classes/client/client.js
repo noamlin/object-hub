@@ -37,7 +37,7 @@ module.exports = exports = class Client {
 	prepareObject(oh) {
 		let proxy = ohInstances.getProxy(oh);
 
-		if(!this.permissions.verify(oh.permissionTree)) { //check if client even has permissions to access the root object
+		if(!this.permissions.verify(oh.permissionTree, 'read', false)) { //check if client even has permissions to access the root object
 			return {};
 		}
 		else {
@@ -50,17 +50,17 @@ module.exports = exports = class Client {
 	/**
 	 * semi-recursively iterates over the original plain object and clears unauthorized properties
 	 * @param {Object} obj - the original object OR sub-objects
-	 * @param {Object} permissions - a permissions map
+	 * @param {Object} permissionNode - a permissions map
 	 */
-	iterateClear(obj, permissions) {
+	iterateClear(obj, permissionNode) {
 		let typeofobj = realtypeof(obj);
 
 		if(typeofobj === 'Object' || typeofobj === 'Array') { //they both behave the same
 			let props = Object.keys(obj);
 			for(let prop of props) {
-				if(permissions[prop]) { //permissions for this property or sub-properties exists, so a validation is required
-					if(this.permissions.verify(permissions[prop])) {
-						this.iterateClear(obj[prop], permissions[prop]);
+				if(permissionNode[prop]) { //permissions for this property or sub-properties exists, so a validation is required
+					if(this.permissions.verify(permissionNode[prop], 'read', false)) {
+						this.iterateClear(obj[prop], permissionNode[prop]);
 					} else {
 						delete obj[prop];
 					}

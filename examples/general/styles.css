@@ -32,7 +32,7 @@ client-block {
   line-height: 22px;
 }
 :host(client-block) div.editor {
-  height: 22px;
+  height: 23px;
   line-height: 22px;
 }
 :host(client-block) div.editor input {
@@ -40,6 +40,10 @@ client-block {
   border: 0;
   width: calc(100% - 70px);
   font-size: 11px;
+}
+:host(client-block) div.editor input:focus {
+  box-shadow: 0 0 3px 2px rgba(150, 220, 255, 0.5) inset;
+  outline: 0;
 }
 :host(client-block) div.viewer {
   height: calc(100% - 44px);

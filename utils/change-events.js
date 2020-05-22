@@ -23,6 +23,11 @@ function evalPath(obj, path) {
 	return { object: obj, property: segments[i] };
 }
 
+/**
+ * spreads an array of event-changes to a more verbose array of changes.
+ * creation of objects or arrays is transformed into individual changes of each property
+ * @param {Array.Object} changes 
+ */
 function spread(changes) {
 	let spreadedChanges = [];
 	for(let i = 0; i < changes.length; i++) {

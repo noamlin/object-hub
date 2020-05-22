@@ -59,7 +59,7 @@ let infrastructure = {
 
 var demo = new OH('demo', server, infrastructure);
 
-OH.use(demo).setPermissions('', 0, 0);
+//OH.use(demo).setPermissions('', 0, 0);
 OH.use(demo).setPermissions('must_1', 1, 1);
 OH.use(demo).setPermissions('must_1.must_2', 2, 2);
 OH.use(demo).setPermissions('or_34', [3,4], [3,4]);
@@ -135,18 +135,22 @@ setInterval(() => {
 		case 0:
 			demo.free_for_all.regular_object.primitive2 = 'a';
 			demo.free_for_all.an_array[1] = true;
+			demo.must_1.open = 'this requires a single permission';
 			break;
 		case 1:
 			demo.free_for_all.regular_object.primitive2 = 'b';
 			demo.free_for_all.an_array.splice(1, 1);
+			demo.must_1.must_2 = 'this requires double permissions';
 			break;
 		case 2:
 			demo.free_for_all.regular_object.primitive2 = 'c';
 			demo.free_for_all.an_array.splice(1, 0, false);
+			demo.must_1.open = 'this requires one permission';
 			break;
 		case 3:
 			demo.free_for_all.regular_object.primitive2 = 'd';
 			delete demo.free_for_all.an_array[1];
+			demo.must_1.must_2 = 'this requires two different permissions';
 			break;
 	}
 	

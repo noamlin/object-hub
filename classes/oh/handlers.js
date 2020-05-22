@@ -4,6 +4,7 @@ const ohInstances = require('./instances.js');
 const { evalPath, spread } = require('../../utils/change-events.js');
 const { cloneDeep } = require('lodash');
 const { defaultBasePermission } = require('../permissions/permissions.js');
+var __permissions = Symbol.for('permissions_property');
 
 /**
  * this function must be called with 'this' as the OH class object
@@ -87,26 +88,21 @@ function separate2batches(changes) {
 function onObjectChange(changes) {
 	if(!Array.isArray(changes) && changes.length === 0) return;
 
-	spread(changes);
+	let spreadedChanges = spread(changes);
+	let areTheSame = this.permissionTree.comparePaths(spreadedChanges, 'read');
 
-	if(changes[0].type !== 'create' && typeof changes[0].value === 'object') {
-		console.log(changes[0]);
-	}
-
-	let batches = separate2batches(changes); //batches of changes
-	for(changes of batches) {
-		let requiredPermissions = this.permissionTree.get(changes[0].path);
+	if(areTheSame) { //better case where all changes require the same permission(s)
+		let change = spreadedChanges[0];
+		let permissionsNode = this.permissionTree.get(change.path, true);
 		//we need only reading permissions
-		let must = requiredPermissions.compiled_read.must;
-		let or = requiredPermissions.compiled_read.or;
-		
-		//TODO - what if new created property is an object with child-objects and the child objects don't get check in the permission check
+		let must = permissionsNode[__permissions].compiled_read.must;
+		let or = permissionsNode[__permissions].compiled_read.or;
 
 		if(or.length === 0 && must.size <= 1) { //best case where a complete level requires permission, not to specific clients
 			if(must.size === 0) {
-				this.io.to(`level_${defaultBasePermission}`).emit('change', changes);
+				this.io.to(`level_${defaultBasePermission}`).emit('change', spreadedChanges);
 			} else if(must.size === 1) {
-				this.io.to(`level_${must.values().next().value}`).emit('change', changes);
+				this.io.to(`level_${must.values().next().value}`).emit('change', spreadedChanges);
 			}
 		}
 		else if(or.length === 1 && must.size === 0) {
@@ -114,49 +110,34 @@ function onObjectChange(changes) {
 			for(let permission of or[0]) {
 				ioToClients = ioToClients.to(`level_${permission}`); //chain rooms
 			}
-			ioToClients.emit('change', changes);
+			ioToClients.emit('change', spreadedChanges);
 		}
 		else { //check every client and chain them to an IO object that will message them
 			let foundClients = false;
 			let ioToClients = this.io;
 
 			for(let [id, client] of this.clients) {
-				let clientSatisfiesMust = true;
-				for(let mustPermission of must) {
-					if(!client.permissions.read.has(mustPermission)) {
-						clientSatisfiesMust = false;
-						break;
-					}
-				}
-
-				let clientSatisfiesOr;
-				if(clientSatisfiesMust) { //this test only matters if client satisfied the 'must' permissions
-					clientSatisfiesOr = true;
-					for(let orLevelPermissions of or) {
-						let clientSatisfiesCurrentLevel = false;
-						for(let permission of orLevelPermissions) {
-							if(client.permissions.read.has(permission)) {
-								clientSatisfiesCurrentLevel = true;
-								break;
-							}
-						}
-
-						if(!clientSatisfiesCurrentLevel) {
-							clientSatisfiesOr = false;
-							break;
-						}
-					}
-				}
-
-				if(clientSatisfiesMust && clientSatisfiesOr) {
+				if(client.permissions.verify(permissionsNode, 'read')) {
 					ioToClients = ioToClients.to(client.socket.id); //chain client
 					foundClients = true;
 				}
 			}
 
 			if(foundClients) {
-				ioToClients.emit('change', changes);
+				ioToClients.emit('change', spreadedChanges);
 			}
+		}
+	}
+	else { //worst case where different changes require different permissions
+		for(let [id, client] of this.clients) {
+			let permittedChanges = [];
+			for(let change of spreadedChanges) {
+				let permissionsNode = this.permissionTree.get(change.path, true);
+				if(client.permissions.verify(permissionsNode, 'read')) {
+					permittedChanges.push(change);
+				}
+			}
+			this.io.to(client.socket.id).emit('change', permittedChanges);
 		}
 	}
 }
