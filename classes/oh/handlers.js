@@ -1,7 +1,7 @@
 "use strict"
 
 const ohInstances = require('./instances.js');
-const { evalPath, spread } = require('../../utils/change-events.js');
+const { evalPath, areValidChanges, spread } = require('../../utils/change-events.js');
 const { cloneDeep } = require('lodash');
 const { defaultBasePermission } = require('../permissions/permissions.js');
 var __permissions = Symbol.for('permissions_property');
@@ -48,48 +48,14 @@ function onDisconnection(client, reason) {
 }
 
 /**
- * @typedef {Object} Change - each change emitted from Proxserve
- * @property {String} path - the path from the object listening to the property that changed
- * @property {*} value - the new value that was set
- * @property {*} oldValue - the previous value
- * @property {String} type - the type of change. may be - "create"|"update"|"delete"
- */
-/**
- * filters changes to ordered batches with the same path and updates the paths.
- * hopefully these changes will always belong to one batch (all changes will have the same path.
- * like the batch of changes created from array manipulation)
- * @param {Array.Change} changes
- */
-function separate2batches(changes) {
-	let batches = [];
-	let lastPath;
-	let lastIndex = -1;
-
-	for(let i=0; i < changes.length; i++) {
-		if(lastIndex === -1) {
-			lastPath = changes[i].path;
-			lastIndex = i;
-		}
-		else if(changes[i].path !== lastPath) {
-			batches.push(changes.slice(lastIndex, i));
-			lastPath = changes[i].path;
-			lastIndex = i;
-		}
-	}
-	batches.push(changes.slice(lastIndex));
-
-	return batches;
-}
-
-/**
  * checks permissions and then emits the changes to the corresponding clients
  * @param {Array} changes
  */
 function onObjectChange(changes) {
-	if(!Array.isArray(changes) && changes.length === 0) return;
+	if(!areValidChanges(changes)) return;
 
 	let spreadedChanges = spread(changes);
-	let areTheSame = this.permissionTree.comparePaths(spreadedChanges, 'read');
+	let areTheSame = this.permissionTree.compareChanges(spreadedChanges, 'read');
 
 	if(areTheSame) { //better case where all changes require the same permission(s)
 		let change = spreadedChanges[0];
@@ -148,106 +114,99 @@ function onObjectChange(changes) {
  * @param {Array} changes 
  */
 function onClientObjectChange(client, changes) {
-	if(Array.isArray(changes)) {
+	if(areValidChanges(changes)) {
 		let proxy = ohInstances.getProxy(this);
-		let batches = separate2batches(changes);
+		let spreadedChanges = spread(changes);
+		let areTheSame = this.permissionTree.compareChanges(spreadedChanges, 'read');
+		let permittedChanges = [];
+		let notPermittedChanges = [];
 
-		for(changes of batches) {
-			let requiredPermissions = this.permissionTree.get(changes[0].path);
-			//TODO - what if client creates a whole new object that one of his sub-objects requires different permissions and the client is not permitted
-			let must = requiredPermissions.compiled_write.must; //only writing permissions
-			let or = requiredPermissions.compiled_write.or; //only writing permissions
-
-			let clientPermissions = client.permissions.write;
-			let isPermitted = true;
-
-			//check 'must' permissions
-			for(let permission of must) {
-				if(!clientPermissions.has(permission)) {
-					isPermitted = false;
-					break;
+		if(areTheSame) { //better case where all changes require the same permission(s)
+			let permissionsNode = this.permissionTree.get(spreadedChanges[0].path, true);
+			if(client.permissions.verify(permissionsNode, 'write', false)) {
+				permittedChanges = spreadedChanges;
+			} else {
+				notPermittedChanges = spreadedChanges;
+			}
+		}
+		else { //worst case where different changes require different permissions
+			for(let change of spreadedChanges) {
+				let permissionsNode = this.permissionTree.get(change.path, true);
+				if(client.permissions.verify(permissionsNode, 'write', false)) {
+					permittedChanges.push(change);
+				} else {
+					notPermittedChanges.push(change);
 				}
 			}
+		}
 
-			if(isPermitted) {
-				//check 'or' permissions
-				for(let orLevelPermissions of or) {
-					let clientSatisfiesCurrentLevel = false;
-					for(let permission of orLevelPermissions) {
-						if(clientPermissions.has(permission)) {
-							clientSatisfiesCurrentLevel = true;
-							break;
-						}
-					}
-
-					if(!clientSatisfiesCurrentLevel) {
-						isPermitted = false;
+		let disapproveChanges = (changesList, reason) => {
+			for(let change of changesList) {
+				let currentPropertyValue = undefined;
+				try {
+					let {object, property} = evalPath(proxy, change.path);
+					currentPropertyValue = object[ property ];
+				} catch(error) {
+					console.error(error);
+				}
+	
+				switch(change.type) {
+					case 'create':
+						change.oldValue = change.value;
+						change.value = undefined;
+						change.type = 'delete';
 						break;
+					case 'update':
+						change.oldValue = change.value;
+						change.value = currentPropertyValue;
+						break;
+					case 'delete':
+						change.oldValue = undefined;
+						change.value = currentPropertyValue;
+						change.type = 'create';
+						break;
+				}
+				change.reason = reason;
+			}
+			this.io.to(client.socket.id).emit('change', changesList); //emit previous values to the client
+		}
+		
+		disapproveChanges(notPermittedChanges, 'Denied: no writing permission'); //reverse not-permitted changes
+
+		if(permittedChanges.length > 0) {
+			let commitChanges = (approve=true) => {
+				if(approve) { //server is permitting
+					for(let change of permittedChanges) {
+						try {
+							let {object, property} = evalPath(proxy, change.path);
+							switch(change.type) {
+								case 'create':
+								case 'update':
+									object[ property ] = change.value;
+									break;
+								case 'delete':
+									delete object[ property ];
+									break;
+							}
+						} catch(error) {
+							console.error(error);
+						}
 					}
+				}
+				else { //server denies making changes
+					disapproveChanges(permittedChanges, 'Denied: overwritten by server');
 				}
 			}
 
-			try {
-				let {object, property} = evalPath(proxy, changes[0].path);
-
-				let commitChanges = (approve=true, reason='Denied: overwritten by server') => {
-					if(Array.isArray(changes)) {
-						if(approve) { //is permitted
-							for(let change of changes) {
-								switch(change.type) {
-									case 'create':
-									case 'update':
-										object[ property ] = change.value;
-										break;
-									case 'delete':
-										delete object[ property ];
-										break;
-								}
-							}
-						}
-						else { //not approved to make changes, whether because of permissions or listener hook
-							for(let change of changes) {
-								switch(change.type) {
-									case 'create':
-										change.oldValue = object[ property ];
-										change.value = undefined;
-										change.type = 'delete';
-										break;
-									case 'update':
-										change.oldValue = change.value;
-										change.value = object[ property ];
-										break;
-									case 'delete':
-										change.oldValue = undefined;
-										change.value = object[ property ];
-										change.type = 'create';
-										break;
-								}
-								change.reason = reason;
-							}
-		
-							this.io.to(client.socket.id).emit('change', changes); //emit previous values to the client
-						}
-					}
-				}
-
-				if(isPermitted) {
-					if(this.listenerCount('client-change') >= 1) {
-						this.emit('client-change', cloneDeep(changes), client, commitChanges); //hook to catch client's change before emitting to all clients
-					}
-					else {
-						commitChanges();
-					}
-				}
-				else { //not permitted
-					commitChanges(false, 'Denied: no writing permission'); //emit previous values to the unauthorized client
-				}
-			} catch(error) {
-				console.error(error);
+			if(this.listenerCount('client-change') >= 1) {
+				this.emit('client-change', cloneDeep(permittedChanges), client, commitChanges); //hook to catch client's change before emitting to all clients
+			}
+			else {
+				commitChanges();
 			}
 		}
 	} else {
-		console.error('changes received from client are not an array', changes);
+		console.error('changes received from client are not valid', changes);
 	}
 }
 

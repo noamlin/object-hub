@@ -79,7 +79,7 @@ OH.use(demo).setPermissions('must_and_or.or_12.must_3.or_45[0].must_7', 7, 7);
 OH.use(demo).on('connection', function(client, clientData, init) {
 	if(clientData) {
 		let id = client.id;
-		this.setPermissions(`dynamic.${id}.secret`, id, id); //only client himself can read/write this secret
+		this.setPermissions(`dynamic.${id}.secret`, [id,'god'], [id,'god']); //only client himself can read/write this secret
 	
 		demo.dynamic[id] = {
 			name: clientData.name,

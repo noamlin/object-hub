@@ -40,7 +40,7 @@ window.addEventListener('DOMContentLoaded', (event) => {
 		{ name: 'Mike', levels: [3,4,5,6,'manager'] },
 		{ name: 'George', levels: [4,1,6,7,'peasant'] },
 		{ name: 'Larry', levels: [1,3,4,8,'power-user'] },
-		{ name: 'GOD', levels: [1,2,3,4,5,6,7,8] }
+		{ name: 'GOD', levels: [1,2,3,4,5,6,7,8,'god'] }
 	];
 
 	for(let i = 0; i < people.length; i++) {
@@ -61,7 +61,7 @@ window.addEventListener('DOMContentLoaded', (event) => {
 				try {
 					eval(code);
 				} catch(e) {
-					//
+					console.error(e);
 				}
 				event.currentTarget.value = '';
 			}

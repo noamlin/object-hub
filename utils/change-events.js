@@ -23,12 +23,35 @@ function evalPath(obj, path) {
 	return { object: obj, property: segments[i] };
 }
 
+var validChangeTypes = ['create','update','delete'];
+
+function areValidChanges(changes) {
+	if(!Array.isArray(changes) || changes.length === 0) {
+		return false;
+	}
+
+	for(let change of changes) {
+		if(typeof change.path !== 'string' ||
+			!validChangeTypes.includes(change.type) ||
+			(!change.hasOwnProperty('value') && change.type !== 'delete') ||
+			(!change.hasOwnProperty('oldValue') && change.type !== 'create')) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
 /**
  * spreads an array of event-changes to a more verbose array of changes.
  * creation of objects or arrays is transformed into individual changes of each property
  * @param {Array.Object} changes 
  */
 function spread(changes) {
+	if(!areValidChanges(changes)) {
+		throw new Error('Invalid changes were given');
+	}
+
 	let spreadedChanges = [];
 	for(let i = 0; i < changes.length; i++) {
 		let change = changes[i];
@@ -60,5 +83,6 @@ function spread(changes) {
 module.exports = exports = {
 	splitPath: Proxserve.splitPath,
 	evalPath: evalPath,
+	areValidChanges: areValidChanges,
 	spread: spread
 };

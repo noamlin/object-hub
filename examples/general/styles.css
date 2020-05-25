@@ -46,7 +46,7 @@ client-block {
   outline: 0;
 }
 :host(client-block) div.viewer {
-  height: calc(100% - 44px);
+  height: calc(100% - 45px);
   overflow: auto;
 }
 :host(client-block) div.viewer pre {

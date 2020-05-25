@@ -177,12 +177,18 @@ class PermissionTree {
 		let parts = splitPath(path);
 		let currentObj = this;
 
-		for(let part of parts) {
-			if(typeof currentObj[part] !== 'undefined') {
-				currentObj = currentObj[part];
-			}
-			else {
-				break;
+		if(parts[0] === '') { //meaning refering to 'this'
+			parts.shift();
+		}
+
+		if(parts.length !== 0) {
+			for(let part of parts) {
+				if(typeof currentObj[part] !== 'undefined') {
+					currentObj = currentObj[part];
+				}
+				else {
+					break;
+				}
 			}
 		}
 		
@@ -193,11 +199,18 @@ class PermissionTree {
 	}
 
 	/**
+	 * @typedef {Object} Change - each change emitted from Proxserve
+	 * @property {String} path - the path from the object listening to the property that changed
+	 * @property {*} value - the new value that was set
+	 * @property {*} oldValue - the previous value
+	 * @property {String} type - the type of change. may be - "create"|"update"|"delete"
+	 */
+	/**
 	 * compare the paths of different changes and see if they all have the same permissions
-	 * @param {Array.Object} changes
+	 * @param {Array.Change} changes
 	 * @param {String} type - 'read' or 'write'
 	 */
-	comparePaths(changes, type) {
+	compareChanges(changes, type) {
 		let previousPermissions;
 
 		for(let change of changes) {
