@@ -58,25 +58,26 @@ let infrastructure = {
 };
 
 var demo = new OH('demo', server, infrastructure);
+var demoInstance = OH.getInstance(demo);
 
-//OH.use(demo).setPermissions('', 0, 0);
-OH.use(demo).setPermissions('must_1', 1, 1);
-OH.use(demo).setPermissions('must_1.must_2', 2, 2);
-OH.use(demo).setPermissions('or_34', [3,4], [3,4]);
-OH.use(demo).setPermissions('or_34.or_12', [1,2], 4);
-OH.use(demo).setPermissions('must_and_or', null, null);
-OH.use(demo).setPermissions('must_and_or.must_1', 1, 1);
-OH.use(demo).setPermissions('must_and_or.must_1.or_23', [2,3]);
-OH.use(demo).setPermissions('must_and_or.must_1.or_23.must_4', 4);
-OH.use(demo).setPermissions('must_and_or.must_1.or_23.must_4[0-1].or_56', [5,6]);
-OH.use(demo).setPermissions('must_and_or.must_1.or_23.must_4[2].or_78', [7,8]);
-OH.use(demo).setPermissions('must_and_or.or_12', [1,2], [1,2]);
-OH.use(demo).setPermissions('must_and_or.or_12.must_3', 3);
-OH.use(demo).setPermissions('must_and_or.or_12.must_3.or_45', [4,5]);
-OH.use(demo).setPermissions('must_and_or.or_12.must_3.or_45[1-2].must_6', 6, 6);
-OH.use(demo).setPermissions('must_and_or.or_12.must_3.or_45[0].must_7', 7, 7);
+//demoInstance.setPermissions('', 0, 0);
+demoInstance.setPermissions('must_1', 1, 1);
+demoInstance.setPermissions('must_1.must_2', 2, 2);
+demoInstance.setPermissions('or_34', [3,4], [3,4]);
+demoInstance.setPermissions('or_34.or_12', [1,2], 4);
+demoInstance.setPermissions('must_and_or', null, null);
+demoInstance.setPermissions('must_and_or.must_1', 1, 1);
+demoInstance.setPermissions('must_and_or.must_1.or_23', [2,3]);
+demoInstance.setPermissions('must_and_or.must_1.or_23.must_4', 4);
+demoInstance.setPermissions('must_and_or.must_1.or_23.must_4[0-1].or_56', [5,6]);
+demoInstance.setPermissions('must_and_or.must_1.or_23.must_4[2].or_78', [7,8]);
+demoInstance.setPermissions('must_and_or.or_12', [1,2], [1,2]);
+demoInstance.setPermissions('must_and_or.or_12.must_3', 3);
+demoInstance.setPermissions('must_and_or.or_12.must_3.or_45', [4,5]);
+demoInstance.setPermissions('must_and_or.or_12.must_3.or_45[1-2].must_6', 6, 6);
+demoInstance.setPermissions('must_and_or.or_12.must_3.or_45[0].must_7', 7, 7);
 
-OH.use(demo).on('connection', function(client, clientData, init) {
+demoInstance.on('connection', function(client, clientData, init) {
 	if(clientData) {
 		let id = client.id;
 		this.setPermissions(`dynamic.${id}.secret`, [id,'god'], [id,'god']); //only client himself can read/write this secret
@@ -93,13 +94,14 @@ OH.use(demo).on('connection', function(client, clientData, init) {
 		console.error('Client connected with missing data');
 	}
 
+	console.log(`client ${client.id} was added`);
 	init();
 });
-OH.use(demo).on('disconnection', function(client, reason) {
-	console.log(`deleting client from list because of: ${reason}`);
+demoInstance.on('disconnection', function(client, reason) {
+	console.log(`deleting client ${client.id} from list. reason: ${reason}`);
 	delete demo.dynamic[client.id];
 });
-OH.use(demo).on('client-change', function(changes, client, commitClientChanges) {
+demoInstance.on('client-change', function(changes, client, commitClientChanges) {
 	let {object, property} = OH.evalPath(demo, changes[0].path);
 
 	if(object === demo && ['foo','bar'].includes(property)) {
@@ -129,30 +131,48 @@ OH.use(demo).on('client-change', function(changes, client, commitClientChanges) 
 	}
 });
 
-var loopCount = 0;
-setInterval(() => {
-	switch(loopCount) {
-		case 0:
-			demo.free_for_all.regular_object.primitive2 = 'a';
-			demo.free_for_all.an_array[1] = true;
-			demo.must_1.open = 'this requires a single permission';
-			break;
-		case 1:
-			demo.free_for_all.regular_object.primitive2 = 'b';
-			demo.free_for_all.an_array.splice(1, 1);
-			demo.must_1.must_2 = 'this requires double permissions';
-			break;
-		case 2:
-			demo.free_for_all.regular_object.primitive2 = 'c';
-			demo.free_for_all.an_array.splice(1, 0, false);
-			demo.must_1.open = 'this requires one permission';
-			break;
-		case 3:
-			demo.free_for_all.regular_object.primitive2 = 'd';
-			delete demo.free_for_all.an_array[1];
-			demo.must_1.must_2 = 'this requires two different permissions';
-			break;
+var alterations = [
+	() => {
+		demo.free_for_all.regular_object.primitive2 = 'a';
+		demo.free_for_all.an_array[1] = true;
+	},
+	() => {
+		demo.must_1.open = 'this requires a single permission';
+	},
+	() => {
+		demo.or_34.open = 'this requires authorization over a signle level';
+	},
+	() => {
+		demo.must_and_or.must_1.or_23.must_4[0].or_56 = 7;
+		demo.must_and_or.must_1.or_23.must_4[1].or_56 = 8;
+	},
+	() => {
+		demo.free_for_all.regular_object.primitive2 = 'b';
+		demo.free_for_all.an_array.splice(1, 1);
+		demo.must_1.must_2 = 'this requires double permissions';
+	},
+	() => {
+		demo.or_34.open = 'this requires authorization over one level';
+	},
+	() => {
+		demo.must_and_or.must_1.or_23.must_4[0].or_56 = 0;
+		demo.must_and_or.must_1.or_23.must_4[1].or_56 = 1;
+	},
+	() => {
+		demo.free_for_all.regular_object.primitive2 = 'c';
+		demo.free_for_all.an_array.splice(1, 0, false);
+		demo.must_1.open = 'this requires one permission';
+	},
+	() => {
+		demo.free_for_all.regular_object.primitive2 = 'd';
+		delete demo.free_for_all.an_array[1];
+		demo.must_1.must_2 = 'this requires two different permissions';
 	}
-	
-	loopCount = (loopCount > 3) ? 0 : loopCount+1;
-}, 500);
+];
+
+var i = 0;
+setInterval(() => {
+	alterations[i]();
+	i++;
+	if(i === alterations.length) i = 0;
+}, 200);

@@ -1,17 +1,29 @@
 "use strict"
 
+const debug = require('debug');
+const handlersLog = debug('handlers');
 const ohInstances = require('./instances.js');
 const { evalPath, areValidChanges, spread } = require('../../utils/change-events.js');
 const { cloneDeep } = require('lodash');
 const { defaultBasePermission } = require('../permissions/permissions.js');
 var __permissions = Symbol.for('permissions_property');
 
+var changeID = 1;
+var logChanges = function(changes) {
+	if(debug.enabled('handlers')) {
+		for(let change of changes) {
+			change.id = changeID++;
+			handlersLog(change);
+		}
+	}
+}
+
 /**
  * this function must be called with 'this' as the OH class object
  * @param {Object} client - the client's socket object
  */
 function onConnection(client) {
-	if(process.env.OH_DEBUG) console.log(`socket.io user connected [ID: ${client.socket.id}]`);
+	handlersLog(`socket.io user connected [ID: ${client.socket.id}]`);
 
 	//this will init the whole data transmitting to the user
 	let init = () => {
@@ -22,7 +34,7 @@ function onConnection(client) {
 				id: client.id
 			};
 			this.io.to(client.socket.id).emit('init', data);
-		}, this.delay * 2);
+		}, this.delay * 10);
 	};
 
 	if(this.listenerCount('connection') >= 1) {
@@ -43,7 +55,7 @@ function onConnection(client) {
 
 function onDisconnection(client, reason) {
 	this.clients.delete(client.id);
-	if(process.env.OH_DEBUG) console.log(`socket.io user disconnected [ID: ${client.socket.id}]`);
+	handlersLog(`socket.io user disconnected [ID: ${client.socket.id}]`);
 	this.emit('disconnection', client, reason);
 }
 
@@ -66,9 +78,13 @@ function onObjectChange(changes) {
 
 		if(or.length === 0 && must.size <= 1) { //best case where a complete level requires permission, not to specific clients
 			if(must.size === 0) {
-				this.io.to(`level_${defaultBasePermission}`).emit('change', spreadedChanges);
+				let levelName = `level_${defaultBasePermission}`;
+				logChanges(spreadedChanges);
+				this.io.to(levelName).emit('change', spreadedChanges);
 			} else if(must.size === 1) {
-				this.io.to(`level_${must.values().next().value}`).emit('change', spreadedChanges);
+				let levelName = `level_${must.values().next().value}`;
+				logChanges(spreadedChanges);
+				this.io.to(levelName).emit('change', spreadedChanges);
 			}
 		}
 		else if(or.length === 1 && must.size === 0) {
@@ -76,6 +92,7 @@ function onObjectChange(changes) {
 			for(let permission of or[0]) {
 				ioToClients = ioToClients.to(`level_${permission}`); //chain rooms
 			}
+			logChanges(spreadedChanges);
 			ioToClients.emit('change', spreadedChanges);
 		}
 		else { //check every client and chain them to an IO object that will message them
@@ -90,6 +107,7 @@ function onObjectChange(changes) {
 			}
 
 			if(foundClients) {
+				logChanges(spreadedChanges);
 				ioToClients.emit('change', spreadedChanges);
 			}
 		}
@@ -103,6 +121,7 @@ function onObjectChange(changes) {
 					permittedChanges.push(change);
 				}
 			}
+			logChanges(permittedChanges);
 			this.io.to(client.socket.id).emit('change', permittedChanges);
 		}
 	}
@@ -124,9 +143,9 @@ function onClientObjectChange(client, changes) {
 		if(areTheSame) { //better case where all changes require the same permission(s)
 			let permissionsNode = this.permissionTree.get(spreadedChanges[0].path, true);
 			if(client.permissions.verify(permissionsNode, 'write', false)) {
-				permittedChanges = spreadedChanges;
+				permittedChanges = changes; //save bandwith by not using spreadedChanges if not necessary
 			} else {
-				notPermittedChanges = spreadedChanges;
+				notPermittedChanges = changes;
 			}
 		}
 		else { //worst case where different changes require different permissions
@@ -171,7 +190,9 @@ function onClientObjectChange(client, changes) {
 			this.io.to(client.socket.id).emit('change', changesList); //emit previous values to the client
 		}
 		
-		disapproveChanges(notPermittedChanges, 'Denied: no writing permission'); //reverse not-permitted changes
+		if(notPermittedChanges.length > 0) {
+			disapproveChanges(notPermittedChanges, 'Denied: no writing permission'); //reverse not-permitted changes
+		}
 
 		if(permittedChanges.length > 0) {
 			let commitChanges = (approve=true) => {

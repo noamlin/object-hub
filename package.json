@@ -6,11 +6,12 @@
 	"main": "index.js",
 	"scripts": {
 		"start": "node index.js",
-		"example-general": "OH_DEBUG=1 node examples/general/index.js",
-		"example-poker": "OH_DEBUG=1 node examples/poker/poker.js",
+		"example-general": "DEBUG=* node examples/general/index.js",
+		"example-poker": "DEBUG=* node examples/poker/poker.js",
 		"test": "jest"
 	},
 	"dependencies": {
+		"debug": "^4.1.1",
 		"express": "^4.17.1",
 		"lodash": "^4.17.15",
 		"observable-slim": "github:noamlin/observable-slim",

@@ -42,7 +42,7 @@ window.addEventListener('DOMContentLoaded', (event) => {
 		{ name: 'Larry', levels: [1,3,4,8,'power-user'] },
 		{ name: 'GOD', levels: [1,2,3,4,5,6,7,8,'god'] }
 	];
-
+	
 	for(let i = 0; i < people.length; i++) {
 		OHs[i] = new OH('demo', people[i], (obj) => { demos[i] = obj; });
 

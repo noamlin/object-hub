@@ -63,7 +63,10 @@ function spread(changes) {
 			for(let key of keys) {
 				innerChanges.push({ path: `${change.path}.${key}`, type: 'create', oldValue: undefined, value: change.value[key] });
 			}
-			spreadedChanges = spreadedChanges.concat(spread(innerChanges));
+			
+			if(innerChanges.length > 0) {
+				spreadedChanges = spreadedChanges.concat(spread(innerChanges));
+			}
 		}
 		else if(change.type === 'create' && typeofchange === 'Array') {
 			spreadedChanges.push({ path: change.path, type: 'create', oldValue: undefined, value: [] }); //shallow change
@@ -71,7 +74,10 @@ function spread(changes) {
 			for(let i=0; i < change.value.length; i++) {
 				innerChanges.push({ path: `${change.path}[${i}]`, type: 'create', oldValue: undefined, value: change.value[i] });
 			}
-			spreadedChanges = spreadedChanges.concat(spread(innerChanges));
+
+			if(innerChanges.length > 0) {
+				spreadedChanges = spreadedChanges.concat(spread(innerChanges));
+			}
 		}
 		else {
 			spreadedChanges.push(change);

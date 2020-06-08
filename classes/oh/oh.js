@@ -82,10 +82,10 @@ module.exports = exports = class OH {
 	}
 
 	/**
-	 * use the proxy's instance
+	 * get the proxy's OH-instance
 	 * @param {Proxy} proxy 
 	 */
-	static use(proxy) {
+	static getInstance(proxy) {
 		return ohInstances.getInstance(proxy);
 	}
 
