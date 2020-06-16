@@ -31,7 +31,7 @@ var OH = (function() {
 			this.socket = io(`/oh-${domain}`, {
 				autoConnect: true,
 				query: { data: JSON.stringify(clientData) },
-				reconnection: true
+				reconnection: false
 			});
 
 			this.socket.on('init', (data) => { //gets initiated with data from the server
@@ -121,7 +121,7 @@ var OH = (function() {
 			}
 
 			if(changes.length >= 1) {
-				this.socket.emit('change', changes);
+				//this.socket.emit('change', changes);
 			}
 		}
 	};

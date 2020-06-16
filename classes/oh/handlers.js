@@ -2,11 +2,10 @@
 
 const debug = require('debug');
 const handlersLog = debug('handlers');
-const ohInstances = require('./instances.js');
-const { evalPath, areValidChanges, spread } = require('../../utils/change-events.js');
 const { cloneDeep } = require('lodash');
-const { defaultBasePermission } = require('../permissions/permissions.js');
-var __permissions = Symbol.for('permissions_property');
+const ohInstances = require('./instances.js');
+const { evalPath, areValidChanges, digest } = require('../../utils/change-events.js');
+const { defaultBasePermission, permissionsKey, initsKey } = require('../../utils/globals.js');
 
 var changeID = 1;
 var logChanges = function(changes) {
@@ -24,17 +23,15 @@ var logChanges = function(changes) {
  */
 function onConnection(client) {
 	handlersLog(`socket.io user connected [ID: ${client.socket.id}]`);
+	this.clients.set(client.id, client);
 
 	//this will init the whole data transmitting to the user
 	let init = () => {
-		setTimeout(() => { //client's connection might triggered changes. don't prepare his initial object until these changes are digested
-			this.clients.set(client.id, client);
-			let data = {
-				obj: client.prepareObject(this),
-				id: client.id
-			};
-			this.io.to(client.socket.id).emit('init', data);
-		}, this.delay * 10);
+		let proxy = ohInstances.getProxy(this);
+		if(typeof proxy[initsKey] === 'undefined') {
+			proxy[initsKey] = [];
+		}
+		proxy[initsKey].push(client.id); //initiates or joins an existing change-event batch. this prevents race condition
 	};
 
 	if(this.listenerCount('connection') >= 1) {
@@ -64,27 +61,35 @@ function onDisconnection(client, reason) {
  * @param {Array} changes
  */
 function onObjectChange(changes) {
-	if(!areValidChanges(changes)) return;
+	let digestion;
+	try {
+		digestion = digest(changes, this.permissionTree);
+	} catch(error) {
+		console.error(error);
+		return;
+	}
 
-	let spreadedChanges = spread(changes);
-	let areTheSame = this.permissionTree.compareChanges(spreadedChanges, 'read');
+	if(!areValidChanges(digestion.filteredChanges)) return; //in case after digestion the filteredChanges are empty
 
-	if(areTheSame) { //better case where all changes require the same permission(s)
-		let change = spreadedChanges[0];
+	if(digestion.requiresDifferentPermissions) { //better case where all changes require the same permission(s)
+		let change = digestion.spreadedChanges[0];
 		let permissionsNode = this.permissionTree.get(change.path, true);
 		//we need only reading permissions
-		let must = permissionsNode[__permissions].compiled_read.must;
-		let or = permissionsNode[__permissions].compiled_read.or;
+		let must = permissionsNode[permissionsKey].compiled_read.must;
+		let or = permissionsNode[permissionsKey].compiled_read.or;
 
 		if(or.length === 0 && must.size <= 1) { //best case where a complete level requires permission, not to specific clients
+			let levelName;
 			if(must.size === 0) {
-				let levelName = `level_${defaultBasePermission}`;
-				logChanges(spreadedChanges);
-				this.io.to(levelName).emit('change', spreadedChanges);
+				levelName = `level_${defaultBasePermission}`;
 			} else if(must.size === 1) {
-				let levelName = `level_${must.values().next().value}`;
-				logChanges(spreadedChanges);
-				this.io.to(levelName).emit('change', spreadedChanges);
+				levelName = `level_${must.values().next().value}`;
+			}
+			logChanges(digestion.spreadedChanges);
+			if(digestion.spreadedChanges.length > 0) {
+				this.io.to(levelName).emit('change', digestion.spreadedChanges);
+			} else {
+				console.error(new Error('Changes to send for clients were empty'));
 			}
 		}
 		else if(or.length === 1 && must.size === 0) {
@@ -92,8 +97,12 @@ function onObjectChange(changes) {
 			for(let permission of or[0]) {
 				ioToClients = ioToClients.to(`level_${permission}`); //chain rooms
 			}
-			logChanges(spreadedChanges);
-			ioToClients.emit('change', spreadedChanges);
+			logChanges(digestion.spreadedChanges);
+			if(digestion.spreadedChanges.length > 0) {
+				ioToClients.emit('change', digestion.spreadedChanges);
+			} else {
+				console.error(new Error('Changes to send for clients were empty'));
+			}
 		}
 		else { //check every client and chain them to an IO object that will message them
 			let foundClients = false;
@@ -107,22 +116,42 @@ function onObjectChange(changes) {
 			}
 
 			if(foundClients) {
-				logChanges(spreadedChanges);
-				ioToClients.emit('change', spreadedChanges);
+				logChanges(digestion.spreadedChanges);
+				if(digestion.spreadedChanges.length > 0) {
+					ioToClients.emit('change', digestion.spreadedChanges);
+				} else {
+					console.error(new Error('Changes to send for clients were empty'));
+				}
 			}
 		}
 	}
 	else { //worst case where different changes require different permissions
 		for(let [id, client] of this.clients) {
 			let permittedChanges = [];
-			for(let change of spreadedChanges) {
+			for(let change of digestion.spreadedChanges) {
 				let permissionsNode = this.permissionTree.get(change.path, true);
 				if(client.permissions.verify(permissionsNode, 'read')) {
 					permittedChanges.push(change);
 				}
 			}
 			logChanges(permittedChanges);
-			this.io.to(client.socket.id).emit('change', permittedChanges);
+			if(permittedChanges.length > 0) {
+				this.io.to(client.socket.id).emit('change', permittedChanges);
+			} else {
+				console.error(new Error('Changes to send for client were empty'));
+			}
+		}
+	}
+
+	//handle clients that are pending to be initiated
+	if(digestion.hasInits) {
+		let proxy = ohInstances.getProxy(this);
+		let clientIDs = proxy[initsKey].slice(0); //shallow copy before we delete and revoke this object from the proxy
+		delete proxy[initsKey]; //this change will be emitted and ignored next time
+
+		for(let id of clientIDs) {
+			let client = this.clients.get(id);
+			client.init(this);
 		}
 	}
 }

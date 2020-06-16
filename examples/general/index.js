@@ -169,10 +169,11 @@ var alterations = [
 		demo.must_1.must_2 = 'this requires two different permissions';
 	}
 ];
-
+if(false) {
 var i = 0;
 setInterval(() => {
 	alterations[i]();
 	i++;
 	if(i === alterations.length) i = 0;
 }, 200);
+}

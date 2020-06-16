@@ -15,7 +15,7 @@
 		"express": "^4.17.1",
 		"lodash": "^4.17.15",
 		"observable-slim": "github:noamlin/observable-slim",
-		"proxserve": "^1.2.1",
+		"proxserve": "^1.2.2",
 		"socket.io": "^2.3.0"
 	},
 	"devDependencies": {

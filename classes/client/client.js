@@ -1,13 +1,15 @@
 "use strict";
 
-const ohInstances = require('../oh/instances.js');
-const { ClientPermissions, defaultBasePermission } = require('../permissions/permissions.js');
-const { str2VarName, realtypeof } = require('../../utils/variables.js');
 const { cloneDeep } = require('lodash');
+const ohInstances = require('../oh/instances.js');
+const { ClientPermissions } = require('../permissions/permissions.js');
+const { defaultBasePermission } = require('../../utils/globals.js');
+const { str2VarName, realtypeof } = require('../../utils/variables.js');
 
 module.exports = exports = class Client {
 	constructor(socket) {
 		this.id = str2VarName(socket.id);
+		this.isInitiated = false;
 		this.socket = socket;
 		this.permissions = new ClientPermissions([defaultBasePermission, this.id]);
 		this.setPermissions(); //initiates permissions with defaults
@@ -21,38 +23,24 @@ module.exports = exports = class Client {
 	setPermissions(read, write) {
 		let diff = this.permissions.set(read, write);
 
-		for(let permission of diff.read.removed) {
-			this.socket.leave(`level_${permission}`);
-		}
-
-		for(let permission of diff.read.added) {
-			this.socket.join(`level_${permission}`);
-		}
-	}
-
-	/**
-	 * prepare the object to send to the client by deleting the properties the client is unauthorized to view
-	 * @param {Object} oh - the OH instance
-	 */
-	prepareObject(oh) {
-		let proxy = ohInstances.getProxy(oh);
-
-		if(!this.permissions.verify(oh.permissionTree, 'read', false)) { //check if client even has permissions to access the root object
-			return {};
-		}
-		else {
-			let obj = cloneDeep(proxy);
-			this.iterateClear(obj, oh.permissionTree);
-			return obj;
+		if(this.isInitiated) {
+			for(let permission of diff.read.removed) {
+				this.socket.leave(`level_${permission}`);
+			}
+	
+			for(let permission of diff.read.added) {
+				this.socket.join(`level_${permission}`);
+			}
 		}
 	}
 
 	/**
+	 * prepare the object to send to the client by deleting the properties the client is unauthorized to view.
 	 * semi-recursively iterates over the original plain object and clears unauthorized properties
-	 * @param {Object} obj - the original object OR sub-objects
+	 * @param {Object} obj - an object/sub-object from the proxy
 	 * @param {Object} permissionNode - a permissions map
 	 */
-	iterateClear(obj, permissionNode) {
+	prepareObject(obj, permissionNode) {
 		let typeofobj = realtypeof(obj);
 
 		if(typeofobj === 'Object' || typeofobj === 'Array') { //they both behave the same
@@ -60,12 +48,29 @@ module.exports = exports = class Client {
 			for(let prop of props) {
 				if(permissionNode[prop]) { //permissions for this property or sub-properties exists, so a validation is required
 					if(this.permissions.verify(permissionNode[prop], 'read', false)) {
-						this.iterateClear(obj[prop], permissionNode[prop]);
+						this.prepareObject(obj[prop], permissionNode[prop]);
 					} else {
 						delete obj[prop];
 					}
 				}
 			}
 		}
+
+		return obj; //it's a recursion but the only one expecting a return value is whoever called this
+	}
+
+	init(oh) {
+		let proxy = ohInstances.getProxy(oh);
+
+		let data = {
+			obj: {},
+			id: this.id
+		};
+
+		if(this.permissions.verify(oh.permissionTree, 'read', false)) { //check if client even has permissions to access the root object
+			data.obj = this.prepareObject(cloneDeep(proxy), oh.permissionTree); //TODO - RETURNS UNDEFINED OBJECT <<===========================
+		}
+
+		oh.io.to(this.socket.id).emit('init', data);
 	}
 };
