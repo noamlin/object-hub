@@ -1,3 +1,10 @@
+/**
+ * Copyright 2020 Noam Lin <noamlin@gmail.com>
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
+ */
 "use strict"
 
 var OH = (function() {
@@ -47,6 +54,11 @@ var OH = (function() {
 			});
 
 			this.socket.on('change', (changes) => {
+				for(let change of changes) {
+					if(change.path.indexOf('.free_for_all.an_array') >= 0) {
+						console.log(change);
+					}
+				}
 				if(this.initiated) {
 					this.updateObject(changes);
 				}
@@ -121,7 +133,7 @@ var OH = (function() {
 			}
 
 			if(changes.length >= 1) {
-				//this.socket.emit('change', changes);
+				this.socket.emit('change', changes);
 			}
 		}
 	};

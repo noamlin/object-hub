@@ -5,7 +5,8 @@
 
 const Proxserve = require('proxserve');
 const { realtypeof } = require('./variables.js');
-const { initsKey } = require('../utils/globals.js');
+const { hiddenPropsKey, forceEventChangeKey } = require('../utils/globals.js');
+const ohInstances = require('../classes/oh/instances.js');
 
 /**
  * evaluate a long path and return the designated object and its referred property
@@ -57,49 +58,52 @@ function areValidChanges(changes) {
  *   creation of objects or arrays into individual changes of each property.
  * - comparing all possible permissions
  * @param {Array.Change} changes
- * @param {Object} permissionTree
+ * @param {Object} oh
  * @param {Object} [digested] - already digested parts
  */
-function digest(changes, permissionTree, digested) {
+function digest(changes, oh, digested) {
 	if(!areValidChanges(changes)) {
 		throw new Error('Invalid changes were given');
 	}
 
-	let isFirstIteration = false; //is it the first run of this recursion
+	let isFirstIteration = false;
 
-	if(typeof digested === 'undefined') {
+	if(typeof digested === 'undefined') { //happens only on the first iteration of the recursion
+		isFirstIteration = true;
+		
 		digested = {
-			filteredChanges: [],/*original changes with special properties filtered out*/
+			filteredChanges: [],
 			spreadedChanges: [],
-			hasInits: false,
-			permission: permissionTree.get(changes[0].path),
+			permission: oh.permissionTree.get(changes[0].path),
 			requiresDifferentPermissions: false
 		};
-		isFirstIteration = true;
 	}
 
 	for(let i = 0; i < changes.length; i++) {
 		let change = changes[i];
-		let typeofchange = realtypeof(change.value);
+
+		if(isFirstIteration) {
+			if(change.path === `.${forceEventChangeKey}`) {
+				if(change.type !== 'delete') {
+					let proxy = ohInstances.getProxy(oh);
+					delete proxy[forceEventChangeKey];
+				}
+				continue;
+			}
+			else {
+				digested.filteredChanges.push(change);
+			}
+		}
 		
 		//check if permission is different between changes. inner changes will be check during the recursion
 		if(digested.requiresDifferentPermissions === false) {
-			let currentPermission = permissionTree.get(change.path);
-			if(permissionTree.compare(digested.permission, currentPermission, 'read') === false) {
+			let currentPermission = oh.permissionTree.get(change.path);
+			if(oh.permissionTree.compare(digested.permission, currentPermission, 'read') === false) {
 				digested.requiresDifferentPermissions = true;
 			}
 		}
 
-		if(isFirstIteration) {
-			if(change.path === `.${initsKey}`) {
-				if(change.type !== 'delete') {
-					digested.hasInits = true;
-				}
-				continue;
-			} else {
-				digested.filteredChanges.push(change);
-			}
-		}
+		let typeofchange = realtypeof(change.value);
 
 		if((change.type === 'create' || change.type === 'update') && typeofchange === 'Object') {
 			digested.spreadedChanges.push({ path: change.path, type: change.type, oldValue: change.oldValue, value: {} }); //shallow change
@@ -111,7 +115,7 @@ function digest(changes, permissionTree, digested) {
 			}
 			
 			if(innerChanges.length > 0) {
-				digest(innerChanges, permissionTree, digested);
+				digest(innerChanges, oh, digested);
 			}
 		}
 		else if((change.type === 'create' || change.type === 'update') && typeofchange === 'Array') {
@@ -122,7 +126,7 @@ function digest(changes, permissionTree, digested) {
 			}
 
 			if(innerChanges.length > 0) {
-				digest(innerChanges, permissionTree, digested);
+				digest(innerChanges, oh, digested);
 			}
 		}
 		else {

@@ -1,11 +1,18 @@
+/**
+ * Copyright 2020 Noam Lin <noamlin@gmail.com>
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
+ */
 "use strict"
 
 const debug = require('debug');
 const handlersLog = debug('handlers');
 const { cloneDeep } = require('lodash');
 const ohInstances = require('./instances.js');
-const { evalPath, areValidChanges, digest } = require('../../utils/change-events.js');
-const { defaultBasePermission, permissionsKey, initsKey } = require('../../utils/globals.js');
+const { evalPath, areValidChanges, digest, getSystemProperties, destroySystemProperties } = require('../../utils/change-events.js');
+const { defaultBasePermission, permissionsKey, forceEventChangeKey } = require('../../utils/globals.js');
 
 var changeID = 1;
 var logChanges = function(changes) {
@@ -23,15 +30,12 @@ var logChanges = function(changes) {
  */
 function onConnection(client) {
 	handlersLog(`socket.io user connected [ID: ${client.socket.id}]`);
-	this.clients.set(client.id, client);
 
 	//this will init the whole data transmitting to the user
 	let init = () => {
 		let proxy = ohInstances.getProxy(this);
-		if(typeof proxy[initsKey] === 'undefined') {
-			proxy[initsKey] = [];
-		}
-		proxy[initsKey].push(client.id); //initiates or joins an existing change-event batch. this prevents race condition
+		proxy[forceEventChangeKey] = 1;
+		this.pendingClients.set(client.id, client);
 	};
 
 	if(this.listenerCount('connection') >= 1) {
@@ -63,7 +67,7 @@ function onDisconnection(client, reason) {
 function onObjectChange(changes) {
 	let digestion;
 	try {
-		digestion = digest(changes, this.permissionTree);
+		digestion = digest(changes, this);
 	} catch(error) {
 		console.error(error);
 		return;
@@ -71,7 +75,7 @@ function onObjectChange(changes) {
 
 	if(!areValidChanges(digestion.filteredChanges)) return; //in case after digestion the filteredChanges are empty
 
-	if(digestion.requiresDifferentPermissions) { //better case where all changes require the same permission(s)
+	if(!digestion.requiresDifferentPermissions) { //better case where all changes require the same permission(s)
 		let change = digestion.spreadedChanges[0];
 		let permissionsNode = this.permissionTree.get(change.path, true);
 		//we need only reading permissions
@@ -144,13 +148,9 @@ function onObjectChange(changes) {
 	}
 
 	//handle clients that are pending to be initiated
-	if(digestion.hasInits) {
-		let proxy = ohInstances.getProxy(this);
-		let clientIDs = proxy[initsKey].slice(0); //shallow copy before we delete and revoke this object from the proxy
-		delete proxy[initsKey]; //this change will be emitted and ignored next time
-
-		for(let id of clientIDs) {
-			let client = this.clients.get(id);
+	if(this.pendingClients.size > 0) {
+		for(let [id, client] of this.pendingClients) {
+			this.pendingClients.delete(id);
 			client.init(this);
 		}
 	}

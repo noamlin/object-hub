@@ -30,10 +30,10 @@ class ClientBlock extends HTMLElement {
 };
 customElements.define('client-block', ClientBlock);
 
-window.addEventListener('DOMContentLoaded', (event) => {
-	var OHs = [];
-	var demos = [];
+var OHs = [];
+var demos = [];
 
+window.addEventListener('DOMContentLoaded', (event) => {
 	var people = [
 		{ name: 'John', levels: [1,2,7,8,'admin'] },
 		{ name: 'Oliver', levels: [2,3,8,5,'moderator'] },
@@ -43,7 +43,7 @@ window.addEventListener('DOMContentLoaded', (event) => {
 		{ name: 'GOD', levels: [1,2,3,4,5,6,7,8,'god'] }
 	];
 	
-	for(let i = 0; i < people.length; i++) {
+	for(let i = 0; i < 1; i++) {
 		OHs[i] = new OH('demo', people[i], (obj) => { demos[i] = obj; });
 
 		let clientBlock = document.createElement('client-block');

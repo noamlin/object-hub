@@ -1,3 +1,10 @@
+/**
+ * Copyright 2020 Noam Lin <noamlin@gmail.com>
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
+ */
 "use strict"
 
 const EventEmitter = require('events');
@@ -19,6 +26,7 @@ class OHinstance extends EventEmitter {
 		this.delay = 9;
 		this.permissionTree = new PermissionTree();
 		this.clients = new Map();
+		this.pendingClients = new Map();
 
 		this.io.on('connection', (socket) => {
 			let client = new Client(socket); //initiate a client with default read-write permissions and sign him to rooms

@@ -1,3 +1,10 @@
+/**
+ * Copyright 2020 Noam Lin <noamlin@gmail.com>
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
+ */
 "use strict";
 
 const { cloneDeep } = require('lodash');
@@ -22,14 +29,23 @@ module.exports = exports = class Client {
 	 */
 	setPermissions(read, write) {
 		let diff = this.permissions.set(read, write);
+		this.updateRooms(diff);
+	}
 
+	updateRooms(diff) {
 		if(this.isInitiated) {
-			for(let permission of diff.read.removed) {
-				this.socket.leave(`level_${permission}`);
-			}
-	
-			for(let permission of diff.read.added) {
-				this.socket.join(`level_${permission}`);
+			if(diff) {
+				for(let permission of diff.read.removed) {
+					this.socket.leave(`level_${permission}`);
+				}
+		
+				for(let permission of diff.read.added) {
+					this.socket.join(`level_${permission}`);
+				}
+			} else { //probably a just-initiated client so let's add him to rooms per existing permissions
+				for(let permission of this.permissions.read) {
+					this.socket.join(`level_${permission}`);
+				}
 			}
 		}
 	}
@@ -60,6 +76,9 @@ module.exports = exports = class Client {
 	}
 
 	init(oh) {
+		this.isInitiated = true;
+		oh.clients.set(this.id, this);
+
 		let proxy = ohInstances.getProxy(oh);
 
 		let data = {
@@ -68,7 +87,7 @@ module.exports = exports = class Client {
 		};
 
 		if(this.permissions.verify(oh.permissionTree, 'read', false)) { //check if client even has permissions to access the root object
-			data.obj = this.prepareObject(cloneDeep(proxy), oh.permissionTree); //TODO - RETURNS UNDEFINED OBJECT <<===========================
+			data.obj = this.prepareObject(cloneDeep(proxy), oh.permissionTree);
 		}
 
 		oh.io.to(this.socket.id).emit('init', data);
