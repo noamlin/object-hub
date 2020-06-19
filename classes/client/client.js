@@ -32,6 +32,10 @@ module.exports = exports = class Client {
 		this.updateRooms(diff);
 	}
 
+	/**
+	 * assign (or leave) client to/from rooms
+	 * @param {Object} [diff] 
+	 */
 	updateRooms(diff) {
 		if(this.isInitiated) {
 			if(diff) {
@@ -91,5 +95,7 @@ module.exports = exports = class Client {
 		}
 
 		oh.io.to(this.socket.id).emit('init', data);
+
+		this.updateRooms();
 	}
 };

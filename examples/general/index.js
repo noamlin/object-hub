@@ -77,6 +77,9 @@ demoInstance.setPermissions('must_and_or.or_12.must_3.or_45', [4,5]);
 demoInstance.setPermissions('must_and_or.or_12.must_3.or_45[1-2].must_6', 6, 6);
 demoInstance.setPermissions('must_and_or.or_12.must_3.or_45[0].must_7', 7, 7);
 
+demoInstance.once('connection', function() {
+	beginRandomDataManipulation();
+});
 demoInstance.on('connection', function(client, clientData, init) {
 	if(clientData) {
 		let id = client.id;
@@ -171,8 +174,10 @@ var alterations = [
 ];
 
 var i = 0;
-setInterval(() => {
-	alterations[i]();
-	i++;
-	if(i === alterations.length) i = 0;
-}, 200);
+function beginRandomDataManipulation() {
+	setInterval(() => {
+		alterations[i]();
+		i++;
+		if(i === alterations.length) i = 0;
+	}, 200);
+}

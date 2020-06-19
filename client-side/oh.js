@@ -54,11 +54,6 @@ var OH = (function() {
 			});
 
 			this.socket.on('change', (changes) => {
-				for(let change of changes) {
-					if(change.path.indexOf('.free_for_all.an_array') >= 0) {
-						console.log(change);
-					}
-				}
 				if(this.initiated) {
 					this.updateObject(changes);
 				}
