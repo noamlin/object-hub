@@ -1,6 +1,11 @@
 "use strict"
 
-const { splitPath, evalPath, spread } = require('../utils/change-events.js');
+const { splitPath, evalPath, areValidChanges, digest } = require('../utils/change-events.js');
+const OH = require('../classes/oh/oh.js');
+const ohInstances = require('../classes/oh/instances.js');
+const { forceEventChangeKey } = require('../utils/globals.js');
+const { infrastructure, MockSocket, mockIO } = require('./mocks.js');
+const { cloneDeep } = require('lodash');
 
 test('splitPath method', () => {
 	expect(splitPath('ab.cd.ef')).toEqual(['ab','cd','ef']);
@@ -27,7 +32,43 @@ test('evalPath method', () => {
 	expect(evalPath(obj, 'dd.ee[1][1]')).toEqual({ object: [0, [0,1,2], 2], property: '1' });
 });
 
-test('spread changes method', () => {
+test('areValidChanges method', () => {
+	let changes = []; //empty
+	expect(areValidChanges(changes)).toBe(false);
+
+	//fully verbose
+	changes.push({ path: '.some1', type: 'create', value: 123, oldValue: -10 });
+	changes.push({ path: '.some2', type: 'delete', value: undefined, oldValue: -20 });
+	changes.push({ path: '.some3', type: 'update', value: 789, oldValue: -30 });
+	expect(areValidChanges(changes)).toBe(true);
+
+	//minimum required properties
+	changes.push({ path: '', type: 'create', value: 123 });
+	changes.push({ path: '.', type: 'delete', oldValue: -20 });
+	expect(areValidChanges(changes)).toBe(true);
+
+	//missing value
+	changes.push({ path: '.some', type: 'create', oldValue: 123 });
+	expect(areValidChanges(changes)).toBe(false);
+
+	//missing oldValue
+	changes[changes.length-1] = { path: '.some', type: 'delete', value: undefined };
+	expect(areValidChanges(changes)).toBe(false);
+
+	//missing value
+	changes[changes.length-1] = { path: '.some', type: 'update', oldValue: 87 };
+	expect(areValidChanges(changes)).toBe(false);
+
+	//missing oldValue
+	changes[changes.length-1] = { path: '.some', type: 'update', value: 76 };
+	expect(areValidChanges(changes)).toBe(false);
+});
+
+test('digest changes method', () => {
+	let proxy = new OH('test', mockIO, infrastructure);
+	let instance = ohInstances.getInstance(proxy);
+
+	//test regular spreading changes
 	let changes = [
 		{ path: '.dynamic.abc', oldValue: undefined, type: 'create', value: { a: 'a-value', b: 'b-value' } },
 		{ path: '.dynamic.xyz', oldValue: undefined, type: 'create', value: [0, 1, 2] }
@@ -43,17 +84,33 @@ test('spread changes method', () => {
 		{ path: '.dynamic.xyz[2]', oldValue: undefined, type: 'create', value: 2 }
 	];
 
-	let spreadedChanges = spread(changes);
-	expect(spreadedChanges).toEqual(shouldBe);
+	let digestedChanges = digest(changes, instance);
+	expect(digestedChanges.filteredChanges).toEqual(changes);
+	expect(digestedChanges.spreadedChanges).toEqual(shouldBe);
+	expect(digestedChanges.requiresDifferentPermissions).toBe(false);
 
+	//test filtering system properties
+	changes.push({ path: `.${forceEventChangeKey}`, oldValue: 1, type: 'delete', value: undefined });
+	let shouldBeFiltered = cloneDeep(changes);
+	shouldBeFiltered.pop();
+
+	digestedChanges = digest(changes, instance);
+	expect(digestedChanges.filteredChanges).toEqual(shouldBeFiltered);
+	expect(digestedChanges.spreadedChanges).toEqual(shouldBe);
+	expect(digestedChanges.requiresDifferentPermissions).toBe(false);
+	
+	//test heavy spreading with different permissions
 	changes = [
 		{ path: '.dynamic.abc', oldValue: undefined, type: 'create', value: 'primitive one' },
 		{ path: '.dynamic.xyz', oldValue: undefined, type: 'create', value: { a:'a', b: [0, { one: 1 }, 2], c:'c' } },
 		{ path: '.dynamic.dsf', oldValue: undefined, type: 'create', value: 'primitive two' },
+		{ path: `.${forceEventChangeKey}`, oldValue: undefined, type: 'create', value: 1 },
 		{ path: '.dynamic.mno', oldValue: undefined, type: 'create', value: [0, { a:'a', arr: [13,6], c:'c' }, 2] },
 		{ path: '.dynamic.jtr', oldValue: undefined, type: 'create', value: 'primitive three' }
 	];
 
+	shouldBeFiltered = cloneDeep(changes);
+	shouldBeFiltered.splice(3,1);
 	shouldBe = [
 		{ path: '.dynamic.abc', oldValue: undefined, type: 'create', value: 'primitive one' },
 		{ path: '.dynamic.xyz', oldValue: undefined, type: 'create', value: {} },
@@ -77,6 +134,11 @@ test('spread changes method', () => {
 		{ path: '.dynamic.jtr', oldValue: undefined, type: 'create', value: 'primitive three' }
 	];
 
-	spreadedChanges = spread(changes);
-	expect(spreadedChanges).toEqual(shouldBe);
+	instance.setPermissions('dynamic.abc', 1);
+	instance.setPermissions('dynamic.xyz', 2);
+
+	digestedChanges = digest(changes, instance);
+	expect(digestedChanges.filteredChanges).toEqual(shouldBeFiltered);
+	expect(digestedChanges.spreadedChanges).toEqual(shouldBe);
+	expect(digestedChanges.requiresDifferentPermissions).toBe(true);
 });

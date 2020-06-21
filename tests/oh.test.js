@@ -5,56 +5,7 @@ const handlers = require('../classes/oh/handlers.js');
 const { prepareObjectForClient } = require('../classes/oh/object-manipulations.js');
 const { realtypeof } = require('../utils/general.js');
 const { cloneDeep } = require('lodash');
-
-var infrastructure = {
-	a_number: 1.23,
-	a_string: 'some string',
-	nested1: {
-		nested2: {
-			nested3: true
-		},
-		nested2_alt: [0, [0, 1, ['a']], 2]
-	},
-	an_arr: [
-		0, 1,
-		{ a:'a', b:'b', nestedArr: [{c:'c'}] },
-		3, 4,
-		{ a:'a', b:'b', nestedArr: [{c:'c'}] },
-		6, 7
-	]
-};
-
-var rooms = {};
-
-class MockSocket {
-	constructor() {
-		this.id = 'id' + Math.floor(Math.random()*10000);
-		this.handshake = { query: '' };
-	}
-	join(name) {
-		if(!rooms[name]) {
-			rooms[name] = {};
-		}
-		rooms[name][this.OH.id] = true;
-	}
-	leave(name) {
-		delete rooms[name][this.OH.id];
-	}
-};
-
-var mockIO = {
-	rooms: {},
-	lastEmit: null,
-	to: function(room) {
-		this.rooms[room] = true;
-		return this;
-	},
-	on: function(args) { console.log('on', args); },
-	emit: function(message, data) {
-		this.lastEmit = { to: this.rooms, message: message, changes: data };
-		this.rooms = {};
-	}
-};
+const { infrastructure, MockSocket, mockIO } = require('./mocks.js');
 
 test('1. Instantiate OH', () => {
 	let testOH = new Oh('root', undefined, cloneDeep(infrastructure));
@@ -235,7 +186,7 @@ test('3. Check client permissions creation', () => {
 	for(let key of Object.keys(roomsShouldEqual)) {
 		roomsShouldEqual[key][id] = true;
 	}
-	expect(rooms).toEqual(roomsShouldEqual);
+	expect(MockSocket.rooms).toEqual(roomsShouldEqual);
 
 	testOH.setClientPermissions(mockSocket, [1,2]);
 	permissionsShouldEqual.writes['2'] = true;
@@ -243,7 +194,7 @@ test('3. Check client permissions creation', () => {
 	expect(mockSocket.OH.permissions).toEqual(permissionsShouldEqual);
 
 	delete roomsShouldEqual.level_1[id]; //should be left an empty room since last test
-	expect(rooms).toEqual(roomsShouldEqual);
+	expect(MockSocket.rooms).toEqual(roomsShouldEqual);
 
 	testOH.setClientPermissions(mockSocket, 'abc', [2,3,'myStr']);
 	permissionsShouldEqual = { writes: { 'abc':true }, reads: { '2':true, '3':true, 'myStr':true } };
@@ -257,7 +208,7 @@ test('3. Check client permissions creation', () => {
 	roomsShouldEqual.level_3[id] = true;
 	roomsShouldEqual.level_myStr = {};
 	roomsShouldEqual.level_myStr[id] = true;
-	expect(rooms).toEqual(roomsShouldEqual);
+	expect(MockSocket.rooms).toEqual(roomsShouldEqual);
 
 	testOH.setClientPermissions(mockSocket, 0); //omitting reads
 	permissionsShouldEqual = { writes: {}, reads: {} };
@@ -269,11 +220,11 @@ test('3. Check client permissions creation', () => {
 	roomsShouldEqual['level_'+id] = {};
 	roomsShouldEqual['level_0'][id] = true;
 	roomsShouldEqual['level_'+id][id] = true;
-	expect(rooms).toEqual(roomsShouldEqual);
+	expect(MockSocket.rooms).toEqual(roomsShouldEqual);
 
 	testOH.setClientPermissions(mockSocket, 0, 0); //reads as 0
 	expect(mockSocket.OH.permissions).toEqual(permissionsShouldEqual);
-	expect(rooms).toEqual(roomsShouldEqual);
+	expect(MockSocket.rooms).toEqual(roomsShouldEqual);
 });
 
 test('4. Create object for client', () => {
