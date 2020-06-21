@@ -22,7 +22,7 @@ let infrastructure = {
 		regular_object: {
 			primitive1: 1,
 			primitive2: 'a',
-			primitive3: true
+			not_primitive3: { x: 'yz'}
 		},
 		an_array: [1, true, 'a']
 	},
@@ -146,8 +146,15 @@ var alterations = [
 		demo.or_34.open = 'this requires authorization over a signle level';
 	},
 	() => {
-		demo.must_and_or.must_1.or_23.must_4[0].or_56 = 7;
-		demo.must_and_or.must_1.or_23.must_4[1].or_56 = 8;
+		demo.must_and_or.must_1.or_23.must_4[0].or_56 = 77;
+		demo.must_and_or.must_1.or_23.must_4[2].or_78 = 88;
+	},
+	() => {
+		demo.free_for_all.regular_object.not_primitive3 = ['arr',{b: ['z']}];
+	},
+	() => {
+		demo.must_and_or.or_12.must_3.or_45[0].must_7 = 55;
+		demo.must_and_or.or_12.must_3.or_45[1].must_6 = 66;
 	},
 	() => {
 		demo.free_for_all.regular_object.primitive2 = 'b';
@@ -155,22 +162,34 @@ var alterations = [
 		demo.must_1.must_2 = 'this requires double permissions';
 	},
 	() => {
-		demo.or_34.open = 'this requires authorization over one level';
+		demo.or_34.or_12 = 'this requires 2 levels with different authorization';
 	},
 	() => {
 		demo.must_and_or.must_1.or_23.must_4[0].or_56 = 0;
-		demo.must_and_or.must_1.or_23.must_4[1].or_56 = 1;
+		demo.must_and_or.must_1.or_23.must_4[2].or_78 = 1;
+	},
+	() => {
+		demo.or_34.open = 'this requires authorization over 1 level';
 	},
 	() => {
 		demo.free_for_all.regular_object.primitive2 = 'c';
 		demo.free_for_all.an_array.splice(1, 0, false);
 		demo.must_1.open = 'this requires one permission';
+		demo.or_34.or_12 = 'this is here just for some scrambling';
+		demo.free_for_all.regular_object.not_primitive3 = {x: 'yz'};
+	},
+	() => {
+		demo.must_and_or.or_12.must_3.or_45[0].must_7 = 0;
+		demo.must_and_or.or_12.must_3.or_45[1].must_6 = 1;
 	},
 	() => {
 		demo.free_for_all.regular_object.primitive2 = 'd';
 		delete demo.free_for_all.an_array[1];
 		demo.must_1.must_2 = 'this requires two different permissions';
-	}
+	},
+	() => {
+		demo.or_34.or_12 = 'this requires authorization over two different levels';
+	},
 ];
 
 var i = 0;

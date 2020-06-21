@@ -5,7 +5,7 @@
 
 const Proxserve = require('proxserve');
 const { realtypeof } = require('./variables.js');
-const { hiddenPropsKey, forceEventChangeKey } = require('../utils/globals.js');
+const { forceEventChangeKey } = require('../utils/globals.js');
 const ohInstances = require('../classes/oh/instances.js');
 
 /**

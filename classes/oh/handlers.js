@@ -11,7 +11,7 @@ const debug = require('debug');
 const handlersLog = debug('handlers');
 const { cloneDeep } = require('lodash');
 const ohInstances = require('./instances.js');
-const { evalPath, areValidChanges, digest, getSystemProperties, destroySystemProperties } = require('../../utils/change-events.js');
+const { evalPath, areValidChanges, digest } = require('../../utils/change-events.js');
 const { defaultBasePermission, permissionsKey, forceEventChangeKey } = require('../../utils/globals.js');
 
 var changeID = 1;
@@ -76,7 +76,7 @@ function onObjectChange(changes) {
 	if(!areValidChanges(digestion.filteredChanges)) return; //in case after digestion the filteredChanges are empty
 
 	if(!digestion.requiresDifferentPermissions) { //better case where all changes require the same permission(s)
-		let change = digestion.spreadedChanges[0];
+		let change = digestion.filteredChanges[0];
 		let permissionsNode = this.permissionTree.get(change.path, true);
 		//we need only reading permissions
 		let must = permissionsNode[permissionsKey].compiled_read.must;
@@ -89,9 +89,9 @@ function onObjectChange(changes) {
 			} else if(must.size === 1) {
 				levelName = `level_${must.values().next().value}`;
 			}
-			logChanges(digestion.spreadedChanges);
-			if(digestion.spreadedChanges.length > 0) {
-				this.io.to(levelName).emit('change', digestion.spreadedChanges);
+			logChanges(digestion.filteredChanges);
+			if(digestion.filteredChanges.length > 0) {
+				this.io.to(levelName).emit('change', digestion.filteredChanges);
 			} else {
 				console.error(new Error('Changes to send for clients were empty'));
 			}
@@ -101,9 +101,9 @@ function onObjectChange(changes) {
 			for(let permission of or[0]) {
 				ioToClients = ioToClients.to(`level_${permission}`); //chain rooms
 			}
-			logChanges(digestion.spreadedChanges);
-			if(digestion.spreadedChanges.length > 0) {
-				ioToClients.emit('change', digestion.spreadedChanges);
+			logChanges(digestion.filteredChanges);
+			if(digestion.filteredChanges.length > 0) {
+				ioToClients.emit('change', digestion.filteredChanges);
 			} else {
 				console.error(new Error('Changes to send for clients were empty'));
 			}
@@ -120,9 +120,9 @@ function onObjectChange(changes) {
 			}
 
 			if(foundClients) {
-				logChanges(digestion.spreadedChanges);
-				if(digestion.spreadedChanges.length > 0) {
-					ioToClients.emit('change', digestion.spreadedChanges);
+				logChanges(digestion.filteredChanges);
+				if(digestion.filteredChanges.length > 0) {
+					ioToClients.emit('change', digestion.filteredChanges);
 				} else {
 					console.error(new Error('Changes to send for clients were empty'));
 				}
@@ -141,9 +141,11 @@ function onObjectChange(changes) {
 			logChanges(permittedChanges);
 			if(permittedChanges.length > 0) {
 				this.io.to(client.socket.id).emit('change', permittedChanges);
-			} else {
-				console.error(new Error('Changes to send for client were empty'));
 			}
+			//not actually needed because iterating over all clients means some of them won't be permitted to read any change
+			/*else {
+				console.error(new Error('Changes to send for client were empty'));
+			}*/
 		}
 	}
 
