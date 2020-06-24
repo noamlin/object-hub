@@ -51,6 +51,7 @@ class OHinstance extends EventEmitter {
 			}
 			this.io.removeAllListeners('connection');
 			this.clients.clear();
+			this.pendingClients.clear();
 
 			setImmediate(() => {
 				Proxserve.destroy(proxy);

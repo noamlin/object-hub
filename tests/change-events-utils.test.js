@@ -2,7 +2,6 @@
 
 const { splitPath, evalPath, areValidChanges, digest } = require('../utils/change-events.js');
 const OH = require('../classes/oh/oh.js');
-const ohInstances = require('../classes/oh/instances.js');
 const { forceEventChangeKey } = require('../utils/globals.js');
 const { infrastructure, MockSocket, mockIO } = require('./mocks.js');
 const { cloneDeep } = require('lodash');
@@ -66,7 +65,7 @@ test('areValidChanges method', () => {
 
 test('digest changes method', () => {
 	let proxy = new OH('test', mockIO, infrastructure);
-	let instance = ohInstances.getInstance(proxy);
+	let instance = OH.getInstance(proxy);
 
 	//test regular spreading changes
 	let changes = [
