@@ -30,7 +30,7 @@ test('1. Instantiate OH', () => {
 //async
 test('2. Destroy an OH instance', (done) => {
 	let anInfrastructure = cloneDeep(mocks.infrastructure);
-	let proxy = new OH('root', mocks.server, anInfrastructure);
+	let proxy = new OH('test', mocks.server, anInfrastructure);
 	let instance = OH.getInstance(proxy);
 
 	instance.clients.set('some_id', 'some client');

@@ -19,13 +19,13 @@ module.exports = exports = class Client {
 		this.isInitiated = false;
 		this.socket = socket;
 		this.permissions = new ClientPermissions([defaultBasePermission, this.id]);
-		this.setPermissions(); //initiates permissions with defaults
+		this.setPermissions(null, null); //initiates permissions with defaults
 	}
 
 	/**
 	 * set client's reading & writing authorization level and assign him to rooms
-	 * @param {Array|Number|String|Null} [read] - reading permissions. 'Null' for deletion
-	 * @param {Array|Number|String|Null} [write] - writing permissions. 'Null' for deletion
+	 * @param {Array|Number|String|Null} [read] - reading permissions. 'null' for deletion (reset)
+	 * @param {Array|Number|String|Null} [write] - writing permissions. 'null' for deletion (reset)
 	 */
 	setPermissions(read, write) {
 		let diff = this.permissions.set(read, write);

@@ -73,53 +73,34 @@ function onObjectChange(changes) {
 		return;
 	}
 
-	if(!areValidChanges(digestion.filteredChanges)) return; //in case after digestion the filteredChanges are empty
+	//check that filteredChanges are not empty in order not to send empty messages to clients
+	if(areValidChanges(digestion.filteredChanges)) {
+		if(!digestion.requiresDifferentPermissions) { //better case where all changes require the same permission(s)
+			let change = digestion.filteredChanges[0];
+			let permissionsNode = this.permissionTree.get(change.path, true);
+			//we need only reading permissions
+			let must = permissionsNode[permissionsKey].compiled_read.must;
+			let or = permissionsNode[permissionsKey].compiled_read.or;
 
-	if(!digestion.requiresDifferentPermissions) { //better case where all changes require the same permission(s)
-		let change = digestion.filteredChanges[0];
-		let permissionsNode = this.permissionTree.get(change.path, true);
-		//we need only reading permissions
-		let must = permissionsNode[permissionsKey].compiled_read.must;
-		let or = permissionsNode[permissionsKey].compiled_read.or;
-
-		if(or.length === 0 && must.size <= 1) { //best case where a complete level requires permission, not to specific clients
-			let levelName;
-			if(must.size === 0) {
-				levelName = `level_${defaultBasePermission}`;
-			} else if(must.size === 1) {
-				levelName = `level_${must.values().next().value}`;
-			}
-			logChanges(digestion.filteredChanges);
-			if(digestion.filteredChanges.length > 0) {
-				this.io.to(levelName).emit('change', digestion.filteredChanges);
-			} else {
-				console.error(new Error('Changes to send for clients were empty'));
-			}
-		}
-		else if(or.length === 1 && must.size === 0) {
-			let ioToClients = this.io;
-			for(let permission of or[0]) {
-				ioToClients = ioToClients.to(`level_${permission}`); //chain rooms
-			}
-			logChanges(digestion.filteredChanges);
-			if(digestion.filteredChanges.length > 0) {
-				ioToClients.emit('change', digestion.filteredChanges);
-			} else {
-				console.error(new Error('Changes to send for clients were empty'));
-			}
-		}
-		else { //check every client and chain them to an IO object that will message them
-			let foundClients = false;
-			let ioToClients = this.io;
-
-			for(let [id, client] of this.clients) {
-				if(client.permissions.verify(permissionsNode, 'read')) {
-					ioToClients = ioToClients.to(client.socket.id); //chain client
-					foundClients = true;
+			if(or.length === 0 && must.size <= 1) { //best case where a complete level requires permission, not to specific clients
+				let levelName;
+				if(must.size === 0) {
+					levelName = `level_${defaultBasePermission}`;
+				} else if(must.size === 1) {
+					levelName = `level_${must.values().next().value}`;
+				}
+				logChanges(digestion.filteredChanges);
+				if(digestion.filteredChanges.length > 0) {
+					this.io.to(levelName).emit('change', digestion.filteredChanges);
+				} else {
+					console.error(new Error('Changes to send for clients were empty'));
 				}
 			}
-
-			if(foundClients) {
+			else if(or.length === 1 && must.size === 0) {
+				let ioToClients = this.io;
+				for(let permission of or[0]) {
+					ioToClients = ioToClients.to(`level_${permission}`); //chain rooms
+				}
 				logChanges(digestion.filteredChanges);
 				if(digestion.filteredChanges.length > 0) {
 					ioToClients.emit('change', digestion.filteredChanges);
@@ -127,25 +108,45 @@ function onObjectChange(changes) {
 					console.error(new Error('Changes to send for clients were empty'));
 				}
 			}
-		}
-	}
-	else { //worst case where different changes require different permissions
-		for(let [id, client] of this.clients) {
-			let permittedChanges = [];
-			for(let change of digestion.spreadedChanges) {
-				let permissionsNode = this.permissionTree.get(change.path, true);
-				if(client.permissions.verify(permissionsNode, 'read')) {
-					permittedChanges.push(change);
+			else { //check every client and chain them to an IO object that will message them
+				let foundClients = false;
+				let ioToClients = this.io;
+
+				for(let [id, client] of this.clients) {
+					if(client.permissions.verify(permissionsNode, 'read')) {
+						ioToClients = ioToClients.to(client.socket.id); //chain client
+						foundClients = true;
+					}
+				}
+
+				if(foundClients) {
+					logChanges(digestion.filteredChanges);
+					if(digestion.filteredChanges.length > 0) {
+						ioToClients.emit('change', digestion.filteredChanges);
+					} else {
+						console.error(new Error('Changes to send for clients were empty'));
+					}
 				}
 			}
-			logChanges(permittedChanges);
-			if(permittedChanges.length > 0) {
-				this.io.to(client.socket.id).emit('change', permittedChanges);
+		}
+		else { //worst case where different changes require different permissions
+			for(let [id, client] of this.clients) {
+				let permittedChanges = [];
+				for(let change of digestion.spreadedChanges) {
+					let permissionsNode = this.permissionTree.get(change.path, true);
+					if(client.permissions.verify(permissionsNode, 'read')) {
+						permittedChanges.push(change);
+					}
+				}
+				logChanges(permittedChanges);
+				if(permittedChanges.length > 0) {
+					this.io.to(client.socket.id).emit('change', permittedChanges);
+				}
+				//not actually needed because iterating over all clients means some of them won't be permitted to read any change
+				/*else {
+					console.error(new Error('Changes to send for client were empty'));
+				}*/
 			}
-			//not actually needed because iterating over all clients means some of them won't be permitted to read any change
-			/*else {
-				console.error(new Error('Changes to send for client were empty'));
-			}*/
 		}
 	}
 
