@@ -21,10 +21,10 @@ class PermissionTree {
 	 * set a permission per path. converts either single or multiple values to a hashmap.
 	 * if a multiple cells path is given (for example: root[0-5].some) it recursively
 	 * calls itself with specific paths (root[0].some, root[1].some...).
-	 * a node's permission can overwrite its parent permission, thus defaultPermission makes a different here.
+	 * a node's permission can overwrite its parent permission, thus defaultPermission makes a difference here and we save it.
 	 * @param {String} path 
-	 * @param {Array|Number|String|Null} [read] - reading permissions. 'Null' for deletion
-	 * @param {Array|Number|String|Null} [write] - writing permissions. 'Null' for deletion
+	 * @param {Array|Number|String|Null} [read] - reading permissions. 'null' for deletion
+	 * @param {Array|Number|String|Null} [write] - writing permissions. 'null' for deletion
 	 */
 	set(path, read, write) {
 		//handle range segment (e.g. 'root[0-5].some')
@@ -69,7 +69,11 @@ class PermissionTree {
 				continue;
 			}
 			else if(typeofRW === 'Null') { //null read or write forces delete
-				delete pathObj[permissionsKey][type];
+				if(path === '') { //we are trying to delete root permission which everybody inherits from
+					pathObj[permissionsKey][type].clear();
+				} else {
+					delete pathObj[permissionsKey][type];
+				}
 			}
 			else { //normal read/write
 				if(typeofRW !== 'Array') { //convert new permissions to array
@@ -146,7 +150,7 @@ class PermissionTree {
 		}
 
 		let hasOwnPermissions = false;
-		if(realtypeof(pathObj[permissionsKey][type]) === 'Set' && pathObj[permissionsKey][type].size >= 1) {
+		if(pathObj[permissionsKey].hasOwnProperty(type) && pathObj[permissionsKey][type].size >= 1) {
 			hasOwnPermissions = true;
 		}
 		
@@ -155,7 +159,12 @@ class PermissionTree {
 		} else {
 			//reached here via recursion, but this object doesn't have it's own permissions
 			//so it doesn't need compiled permissions. instead it will inherit from parent.
-			delete pathObj[permissionsKey][`compiled_${type}`];
+			if(pathArr.length === 1 && pathArr[0] === '') { //we are trying to delete root permission which everybody inherits from
+				pathObj[permissionsKey][`compiled_${type}`].must.clear();
+				pathObj[permissionsKey][`compiled_${type}`].or.length = 0;
+			} else {
+				delete pathObj[permissionsKey][`compiled_${type}`];
+			}
 		}
 
 		//update all children that might be affected. brute force.. inefficient..
@@ -169,9 +178,9 @@ class PermissionTree {
 	/**
 	 * get the permissions of a path
 	 * @param {String} path
-	 * @param {Boolean} [nodeOnly] - returns the node of the tree or a permission object
+	 * @param {Boolean} [getNode] - returns the node of the tree or a permission object
 	 */
-	get(path, nodeOnly=false) {
+	get(path, getNode=false) {
 		let parts = splitPath(path);
 		let currentObj = this;
 
@@ -190,14 +199,14 @@ class PermissionTree {
 			}
 		}
 		
-		if(nodeOnly) {
+		if(getNode) {
 			return currentObj;
 		}
 		return currentObj[permissionsKey];
 	}
 
 	/**
-	 * compares two permissions and returns true if they are the same or false if are different
+	 * compares two permissions and returns true if they are (compiled) the same or false if are different
 	 * @param {Object} permission1
 	 * @param {Object} permission2
 	 * @param {String} type - 'read' or 'write'

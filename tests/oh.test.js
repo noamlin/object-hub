@@ -60,7 +60,7 @@ test('3. Create and send changes to client', (done) => {
 	let proxy = new OH('root', mocks.server, anInfrastructure);
 	let instance = OH.getInstance(proxy);
 	instance.io = mocks.io;
-	let delay = instance.delay + 1;
+	let delay = instance.delay + 10;
 
 	let client1 = new mocks.Client();
 	let client2 = new mocks.Client();
@@ -94,6 +94,7 @@ test('3. Create and send changes to client', (done) => {
 	}, delay);
 
 	function part2() {
+		instance.setPermissions('', 'admin');
 		instance.setPermissions('nested1', 1);
 		instance.setPermissions('nested1.nested2', 2);
 		instance.setPermissions('nested1.nested2.nested3', 3);
@@ -108,7 +109,7 @@ test('3. Create and send changes to client', (done) => {
 	}
 
 	function part3() {
-		client2.setPermissions([1,2,3], 0);
+		client2.setPermissions(['admin',1,2,3], 0);
 		proxy.nested1.nested2.nested3 = 4;
 
 		setTimeout(() => {
@@ -133,12 +134,12 @@ test('3. Create and send changes to client', (done) => {
 	function part4() {
 		instance.setPermissions('nested1', 0);
 		instance.setPermissions('nested1.nested2', 0);
-		instance.setPermissions('nested1.nested2.nested3', 3);
+		instance.setPermissions('nested1.nested2.nested3', 0);
 		
 		proxy.nested1.nested2.nested3 = 5;
 		setTimeout(() => {
 			let shouldBe = {
-				to: { level_3: true },
+				to: { level_admin: true },
 				message: 'change',
 				changes: [
 					{

@@ -36,6 +36,10 @@ class OHinstance extends EventEmitter {
 		});
 	}
 
+	get [Symbol.toStringTag]() {
+		return 'OH!';
+	}
+
 	/**
 	 * destroy the instance and the connections
 	 * @param {Function} [cb] - a callback function

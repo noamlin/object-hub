@@ -1,212 +1,185 @@
 "use strict";
 
-test('2. Check permissions creation', () => {
-	let testOH = new Oh('root', undefined, cloneDeep(infrastructure));
+const Client = require('../classes/client/client.js');
+const { PermissionTree, ClientPermissions } = require('../classes/permissions/permissions.js');
+const { defaultBasePermission, permissionsKey } = require('../utils/globals.js');
+const mocks = require('./mocks.js');
+const OH = require('../classes/oh/oh.js');
+const { cloneDeep } = require('lodash');
 
-	let expectedPermissions = {
-		'root': {
-			'a_number': {}
-		}
-	};
-	testOH.setPermissions('root.a_number', 0, 0, true);
-	expect(testOH.__permissions).toEqual(expectedPermissions);
-
-	expectedPermissions['root']['nested1'] = {
-		'nested2': {
-			__writes: { '4': true },
-			__reads: { '4': true },
-			__compiled: {
-				writes: { must: ['4'], or: [] },
-				reads: { must: ['4'], or: [] }
-			}
-		}
-	};
-	testOH.setPermissions('root.nested1.nested2', 4, 4, true);
-	expect(testOH.__permissions).toEqual(expectedPermissions);
-
-	expectedPermissions['root']['nested1']['nested2']['nested3'] = {
-		__writes: { '3': true, '4': true, '5': true },
-		__reads: { '6': true, '7': true, '8': true },
-		__compiled: {
-			writes: { must: ['4'], or: [] },
-			reads: { must: ['4'], or: [['6','7','8']] }
-		}
-	};
-	testOH.setPermissions('root.nested1.nested2.nested3', [0,3,4,5], [0,6,7,8], true);
-	expect(testOH.__permissions).toEqual(expectedPermissions);
-
-	// //overwriting an existing permission
-	expectedPermissions['root']['nested1']['nested2']['nested3'] = {
-		__writes: { '1': true, '3': true },
-		__reads: { '2': true, '3': true },
-		__compiled: {
-			writes: { must: ['4'], or: [['1','3']] },
-			reads: { must: ['4'], or: [['2','3']] }
-		}
-	};
-	testOH.setPermissions('root.nested1.nested2.nested3', [1,3], [2,3], true);
-	expect(testOH.__permissions).toEqual(expectedPermissions);
-	
-	expectedPermissions['root']['nested1']['nested2'] = {
-		__writes: { '4': true, '5': true, '6': true },
-		__compiled: {
-			writes: { must: [], or: [['4','5','6']] },
-			reads: { must: [], or: [] }
-		},
-		'nested3': {
-			__writes: { '1': true, '3': true },
-			__reads: { '2': true, '3': true },
-			__compiled: {
-				writes: { must: [], or: [['4','5','6'], ['1','3']] },
-				reads: { must: [], or: [['2','3']] }
-			}
-		}
-	};
-	testOH.setPermissions('root.nested1.nested2', [4,5,6], 0, true);
-	expect(testOH.__permissions).toEqual(expectedPermissions);
-
-	expectedPermissions['root']['nested1']['nested2_alt'] = {
-		'0': {
-			'1': {
-				__writes: { '1': true },
-				__reads: { '1': true },
-				__compiled: {
-					writes: { must: ['1'], or: [] },
-					reads: { must: ['1'], or: [] }
-				}
-			}
-		},
-		'1': {
-			'1': {
-				__writes: { '1': true },
-				__reads: { '1': true },
-				__compiled: {
-					writes: { must: ['1'], or: [] },
-					reads: { must: ['1'], or: [] }
-				}
-			}
-		}
-	};
-	testOH.setPermissions('root.nested1.nested2_alt[0-1][1]', 1, 1, true);
-	expect(testOH.__permissions).toEqual(expectedPermissions);
-
-	expectedPermissions['root']['an_arr'] = {
-		'3': {
-			'nestedArr': {
-				__reads: { '6': true, '7': true },
-				__compiled: {
-					writes: { must: [], or: [] },
-					reads: { must: [], or: [['6','7']] }
-				}
-			}
-		},
-		'4': {
-			'nestedArr': {
-				__reads: { '6': true, '7': true },
-				__compiled: {
-					writes: { must: [], or: [] },
-					reads: { must: [], or: [['6','7']] }
-				}
-			}
-		}
-	};
-	testOH.setPermissions('root.an_arr[4-3].nestedArr', 0, [6,7], true);
-	expect(testOH.__permissions).toEqual(expectedPermissions);
-
-	expectedPermissions['root']['an_arr']['3']['nestedArr'] = {
-		__reads: { '3': true },
-		__compiled: {
-			writes: { must: [], or: [] },
-			reads: { must: ['3'], or: [] }
-		}
-	};
-	testOH.setPermissions('root.an_arr[3].nestedArr', 0, 3, true);
-	expect(testOH.__permissions).toEqual(expectedPermissions);
-
-	//test recursion of updating child objects of assigned object
-	expectedPermissions['root']['an_arr'] = {
-		__reads: { '6': true },
-		__compiled: {
-			writes: { must: [], or: [] },
-			reads: { must: ['6'], or: [] }
-		},
-		'3': {
-			'nestedArr': {
-				__reads: { '3': true },
-				__compiled: {
-					writes: { must: [], or: [] },
-					reads: { must: ['6','3'], or: [] }
-				}
-			}
-		},
-		'4': {
-			'nestedArr': {
-				__reads: { '6': true, '7': true },
-				__compiled: {
-					writes: { must: [], or: [] },
-					reads: { must: ['6'], or: [] }
-				}
-			}
-		}
-	};
-	testOH.setPermissions('root.an_arr', 0, 6, true);
-	expect(testOH.__permissions).toEqual(expectedPermissions);
+test('1. instantiate a PermissionTree', () => {
+	let permissionTree = new PermissionTree();
+	expect(permissionTree[permissionsKey]).toEqual({
+		read: new Set(),
+		write: new Set(),
+		compiled_read: { must: new Set(), or: [] },
+		compiled_write: { must: new Set(), or: [] }
+	});
 });
 
-test('3. Check client permissions creation', () => {
-	let testOH = new Oh('root', undefined, cloneDeep(infrastructure));
-	let mockSocket = new MockSocket();
-	handlers.onConnection.call(testOH, mockSocket); //joins room level_0
-	let id = mockSocket.OH.id;
+test('2. set permissions for different paths', () => {
+	let permissionTree = new PermissionTree();
 
-	testOH.setClientPermissions(mockSocket, 1, 1);
-	let permissionsShouldEqual = { writes: { '1':true }, reads: { '1':true } };
-	permissionsShouldEqual.writes[id] = true;
-	permissionsShouldEqual.reads[id] = true;
-	expect(mockSocket.OH.permissions).toEqual(permissionsShouldEqual);
+	permissionTree.set('a_number', defaultBasePermission, defaultBasePermission);
+	expect(permissionTree.a_number[permissionsKey].read).toEqual(new Set([defaultBasePermission]));
+	expect(permissionTree.a_number[permissionsKey].write).toEqual(new Set([defaultBasePermission]));
 
-	let roomsShouldEqual = { level_0: {}, level_1: {} };
-	roomsShouldEqual['level_'+id] = {};
-	for(let key of Object.keys(roomsShouldEqual)) {
-		roomsShouldEqual[key][id] = true;
-	}
-	expect(MockSocket.rooms).toEqual(roomsShouldEqual);
+	permissionTree.set('n1.n2', 4, 5);
+	expect(permissionTree.n1.n2[permissionsKey].read).toEqual(new Set([4]));
+	expect(permissionTree.n1.n2[permissionsKey].write).toEqual(new Set([5]));
 
-	testOH.setClientPermissions(mockSocket, [1,2]);
-	permissionsShouldEqual.writes['2'] = true;
-	delete permissionsShouldEqual.reads['1'];
-	expect(mockSocket.OH.permissions).toEqual(permissionsShouldEqual);
+	permissionTree.set('n1.n2.n3', [0,3,4,5], [0,6,7,8]);
+	expect(permissionTree.n1.n2.n3[permissionsKey].read).toEqual(new Set([0,3,4,5]));
+	expect(permissionTree.n1.n2.n3[permissionsKey].write).toEqual(new Set([0,6,7,8]));
 
-	delete roomsShouldEqual.level_1[id]; //should be left an empty room since last test
-	expect(MockSocket.rooms).toEqual(roomsShouldEqual);
+	permissionTree.set('n1.n2.n3', undefined, null); //read unchanged. write deleted thus inheriting from parent
+	expect(permissionTree.n1.n2.n3[permissionsKey].read).toEqual(new Set([0,3,4,5]));
+	expect(permissionTree.n1.n2.n3[permissionsKey].write === permissionTree.n1.n2[permissionsKey].write).toBe(true);
 
-	testOH.setClientPermissions(mockSocket, 'abc', [2,3,'myStr']);
-	permissionsShouldEqual = { writes: { 'abc':true }, reads: { '2':true, '3':true, 'myStr':true } };
-	permissionsShouldEqual.writes[id] = true;
-	permissionsShouldEqual.reads[id] = true;
-	expect(mockSocket.OH.permissions).toEqual(permissionsShouldEqual);
+	permissionTree.set('n1.n2', undefined, [4,5,6]);
+	expect(permissionTree.n1.n2.n3[permissionsKey].write).toEqual(new Set([4,5,6]));//n3 'write' is parent
 
-	roomsShouldEqual.level_2 = {};
-	roomsShouldEqual.level_2[id] = true;
-	roomsShouldEqual.level_3 = {};
-	roomsShouldEqual.level_3[id] = true;
-	roomsShouldEqual.level_myStr = {};
-	roomsShouldEqual.level_myStr[id] = true;
-	expect(MockSocket.rooms).toEqual(roomsShouldEqual);
+	permissionTree.set('arr1.arr2[0-1]', 1, 1);
+	expect(permissionTree.arr1.arr2['0'][permissionsKey].read).toEqual(new Set([1]));
+	expect(permissionTree.arr1.arr2['0'][permissionsKey].write).toEqual(new Set([1]));
+	expect(permissionTree.arr1.arr2['1'][permissionsKey].read).toEqual(new Set([1]));
+	expect(permissionTree.arr1.arr2['1'][permissionsKey].write).toEqual(new Set([1]));
 
-	testOH.setClientPermissions(mockSocket, 0); //omitting reads
-	permissionsShouldEqual = { writes: {}, reads: {} };
-	permissionsShouldEqual.writes[id] = true;
-	permissionsShouldEqual.reads[id] = true;
-	expect(mockSocket.OH.permissions).toEqual(permissionsShouldEqual);
+	permissionTree.set('arr1[4-5]', 0, 2);
+	expect(permissionTree.arr1['4'][permissionsKey].read).toEqual(new Set([0]));
+	expect(permissionTree.arr1['4'][permissionsKey].write).toEqual(new Set([2]));
+	expect(permissionTree.arr1['5'][permissionsKey].read).toEqual(new Set([0]));
+	expect(permissionTree.arr1['5'][permissionsKey].write).toEqual(new Set([2]));
+});
 
-	roomsShouldEqual = { level_0: {}, level_1: {}, level_2: {}, level_3: {}, level_myStr: {} };
-	roomsShouldEqual['level_'+id] = {};
-	roomsShouldEqual['level_0'][id] = true;
-	roomsShouldEqual['level_'+id][id] = true;
-	expect(MockSocket.rooms).toEqual(roomsShouldEqual);
+test('3. get permission or node', () => {
+	let permissionTree = new PermissionTree();
 
-	testOH.setClientPermissions(mockSocket, 0, 0); //reads as 0
-	expect(mockSocket.OH.permissions).toEqual(permissionsShouldEqual);
-	expect(MockSocket.rooms).toEqual(roomsShouldEqual);
+	permissionTree.set('inner1', 1, 2);
+	permissionTree.set('inner1.inner2', 'a', 'b');
+	permissionTree.set('inner1.inner2.inner3', undefined, [6,7]);
+
+	let inner = permissionTree.get('inner1');
+	expect(inner).toEqual({
+		read: new Set([1]),
+		write: new Set([2]),
+		compiled_read: {
+			must: new Set([1]),
+			or: []
+		},
+		compiled_write: {
+			must: new Set([2]),
+			or: []
+		}
+	});
+	expect(permissionTree.get('inner1', false) === inner).toBe(true);
+
+	let innerNode = permissionTree.get('inner1', true);
+	expect(innerNode[permissionsKey] === inner).toBe(true);
+	expect(innerNode.hasOwnProperty('inner2')).toBe(true);
+	expect(innerNode.inner2.hasOwnProperty('inner3')).toBe(true);
+
+	innerNode = permissionTree.get('inner1.inner2.inner3', true);
+	inner =  permissionTree.get('inner1.inner2');
+	expect(inner.read === innerNode[permissionsKey].read).toBe(true); //same object since inhereting from parent
+});
+
+test('4. compare method', () => {
+	let permissionTree = new PermissionTree();
+
+	permissionTree.set('inner1', [1,2,3], ['a','b','c']);
+	permissionTree.set('inner1.inner2', undefined, null); //never set before so undefined/null should act the same
+	permissionTree.set('inner1.inner2.inner3', 4, undefined);
+	permissionTree.set('inner1.inner2.inner3.inner4', ['x','y','z']);
+
+	let inner1 = permissionTree.get('inner1');
+	let inner2 = permissionTree.get('inner1.inner2');
+	expect(permissionTree.compare(inner1, inner2, 'read')).toBe(true);
+	expect(permissionTree.compare(inner1, inner2, 'write')).toBe(true);
+
+	let inner3 = permissionTree.get('inner1.inner2.inner3');
+	expect(permissionTree.compare(inner1, inner3, 'read')).toBe(false);
+	expect(permissionTree.compare(inner1, inner3, 'write')).toBe(true);
+
+	permissionTree.set('other1', [1,2,3]);
+	permissionTree.set('other1.other2', 4);
+	permissionTree.set('other1.other2.other3', ['x','y','z']);
+
+	let inner4 = permissionTree.get('inner1.inner2.inner3.inner4');
+	let other = permissionTree.get('other1.other2.other3');
+	expect(permissionTree.compare(inner4, other, 'read')).toBe(true); //compiled to exactly the same
+	expect(permissionTree.compare(inner4, other, 'write')).toBe(false); //didn't compile the same
+});
+
+test('5. compile permissions', () => {
+	let permissionTree = new PermissionTree();
+	permissionTree.set('', 1, 2);
+	permissionTree.set('inner1', 3);
+	permissionTree.set('inner1.inner2', [5,6,7], ['a','b','c']);
+	permissionTree.set('inner1.inner2.inner3', ['x','y','z']);
+	
+	let read = permissionTree[permissionsKey].compiled_read;
+	let write = permissionTree[permissionsKey].compiled_write;
+	expect(read).toEqual({
+		must: new Set([1]),
+		or: []
+	});
+	expect(write).toEqual({
+		must: new Set([2]),
+		or: []
+	});
+
+	read = permissionTree.inner1[permissionsKey].compiled_read;
+	write = permissionTree.inner1[permissionsKey].compiled_write;
+	expect(read).toEqual({
+		must: new Set([1,3]),
+		or: []
+	});
+	expect(write).toEqual({
+		must: new Set([2]),
+		or: []
+	});
+
+	read = permissionTree.inner1.inner2[permissionsKey].compiled_read;
+	write = permissionTree.inner1.inner2[permissionsKey].compiled_write;
+	expect(read).toEqual({
+		must: new Set([1,3]),
+		or: [new Set([5,6,7])]
+	});
+	expect(write).toEqual({
+		must: new Set([2]),
+		or: [new Set(['a','b','c'])]
+	});
+
+	read = permissionTree.inner1.inner2.inner3[permissionsKey].compiled_read;
+	write = permissionTree.inner1.inner2.inner3[permissionsKey].compiled_write;
+	expect(read).toEqual({
+		must: new Set([1,3]),
+		or: [new Set([5,6,7]), new Set(['x','y','z'])]
+	});
+	expect(write).toEqual({
+		must: new Set([2]),
+		or: [new Set(['a','b','c'])]
+	});
+
+	permissionTree.set('', null, null);
+	permissionTree.set('inner1', ['f','g'], ['h','j']);
+	permissionTree.set('inner1.inner2', null, null);
+
+	read = permissionTree.inner1.inner2[permissionsKey].compiled_read; //inner2, the deleted one
+	write = permissionTree.inner1.inner2[permissionsKey].compiled_write; //inner2, the deleted one
+	expect(permissionTree.inner1[permissionsKey].compiled_read === read).toBe(true);
+	expect(permissionTree.inner1[permissionsKey].compiled_write === write).toBe(true);
+
+	read = permissionTree.inner1.inner2.inner3[permissionsKey].compiled_read;
+	write = permissionTree.inner1.inner2.inner3[permissionsKey].compiled_write;
+	expect(read).toEqual({
+		must: new Set(),
+		or: [new Set(['f','g']), new Set(['x','y','z'])]
+	});
+	expect(permissionTree.inner1[permissionsKey].compiled_write === write).toBe(true);
+	expect(write).toEqual({
+		must: new Set(),
+		or: [new Set(['h','j'])]
+	});
 });

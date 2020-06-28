@@ -7,7 +7,7 @@ const mocks = require('./mocks.js');
 const OH = require('../classes/oh/oh.js');
 const handlers = require('../classes/oh/handlers.js');
 const { cloneDeep } = require('lodash');
-if(false) {
+
 test('1. Instantiate a client', () => {
 	let socket = new mocks.Socket(123);
 	let client = new Client(socket);
@@ -101,7 +101,7 @@ test('4. init method', () => {
 		}
 	});
 });
-}
+
 test('5. prepareObject method', (done) => {
 	let anInfrastructure = cloneDeep(mocks.infrastructure);
 	let proxy = new OH('test', mocks.server, anInfrastructure);
