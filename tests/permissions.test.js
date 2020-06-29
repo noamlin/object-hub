@@ -1,11 +1,7 @@
 "use strict";
 
-const Client = require('../classes/client/client.js');
 const { PermissionTree, ClientPermissions } = require('../classes/permissions/permissions.js');
 const { defaultBasePermission, permissionsKey } = require('../utils/globals.js');
-const mocks = require('./mocks.js');
-const OH = require('../classes/oh/oh.js');
-const { cloneDeep } = require('lodash');
 
 test('1. instantiate a PermissionTree', () => {
 	let permissionTree = new PermissionTree();
@@ -182,4 +178,235 @@ test('5. compile permissions', () => {
 		must: new Set(),
 		or: [new Set(['h','j'])]
 	});
+});
+
+test('6. instantiate ClientPermissions', () => {
+	let clientPermissions = new ClientPermissions();
+	expect(clientPermissions).toEqual({
+		defaultPermissions: [],
+		read: new Set(),
+		write: new Set()
+	});
+
+	clientPermissions = new ClientPermissions('default_permission');
+	expect(clientPermissions).toEqual({
+		defaultPermissions: ['default_permission'],
+		read: new Set(),
+		write: new Set()
+	});
+
+	clientPermissions = new ClientPermissions([0]);
+	expect(clientPermissions).toEqual({
+		defaultPermissions: [0],
+		read: new Set(),
+		write: new Set()
+	});
+});
+
+test('7. set ClientPermissions', () => {
+	let clientPermissions = new ClientPermissions(123);
+	let diff = clientPermissions.set();
+	expect(clientPermissions).toEqual({
+		defaultPermissions: [123],
+		read: new Set(),
+		write: new Set()
+	});
+	expect(diff).toEqual({
+		read: {
+			added: [],
+			removed: []
+		},
+		write: {
+			added: [],
+			removed: []
+		}
+	});
+
+	diff = clientPermissions.set(null);
+	expect(clientPermissions).toEqual({
+		defaultPermissions: [123],
+		read: new Set([123]),
+		write: new Set()
+	});
+	expect(diff).toEqual({
+		read: {
+			added: [123],
+			removed: []
+		},
+		write: {
+			added: [],
+			removed: []
+		}
+	});
+
+	diff = clientPermissions.set(undefined, null);
+	expect(clientPermissions).toEqual({
+		defaultPermissions: [123],
+		read: new Set([123]),
+		write: new Set([123])
+	});
+	expect(diff).toEqual({
+		read: {
+			added: [],
+			removed: []
+		},
+		write: {
+			added: [123],
+			removed: []
+		}
+	});
+
+	diff = clientPermissions.set(1, 'a');
+	expect(clientPermissions).toEqual({
+		defaultPermissions: [123],
+		read: new Set([123, 1]),
+		write: new Set([123, 'a'])
+	});
+	expect(diff).toEqual({
+		read: {
+			added: [1],
+			removed: []
+		},
+		write: {
+			added: ['a'],
+			removed: []
+		}
+	});
+
+	diff = clientPermissions.set([2,3,4], null);
+	expect(clientPermissions).toEqual({
+		defaultPermissions: [123],
+		read: new Set([123, 2,3,4]),
+		write: new Set([123])
+	});
+	expect(diff).toEqual({
+		read: {
+			added: [2,3,4],
+			removed: [1]
+		},
+		write: {
+			added: [],
+			removed: ['a']
+		}
+	});
+
+	clientPermissions.set(undefined, 'a');
+	diff = clientPermissions.set(null, ['a','b','c']);
+	expect(clientPermissions).toEqual({
+		defaultPermissions: [123],
+		read: new Set([123]),
+		write: new Set([123, 'a','b','c'])
+	});
+	expect(diff).toEqual({
+		read: {
+			added: [],
+			removed: [2,3,4]
+		},
+		write: {
+			added: ['b','c'],
+			removed: []
+		}
+	});
+
+	diff = clientPermissions.set(undefined, undefined);
+	expect(clientPermissions).toEqual({
+		defaultPermissions: [123],
+		read: new Set([123]),
+		write: new Set([123, 'a','b','c'])
+	});
+	expect(diff).toEqual({
+		read: {
+			added: [],
+			removed: []
+		},
+		write: {
+			added: [],
+			removed: []
+		}
+	});
+
+	clientPermissions.set([1,2], ['a','b']);
+	diff = clientPermissions.set([2,3], ['b','c']);
+	expect(clientPermissions).toEqual({
+		defaultPermissions: [123],
+		read: new Set([123, 2,3]),
+		write: new Set([123, 'b','c'])
+	});
+	expect(diff).toEqual({
+		read: {
+			added: [3],
+			removed: [1]
+		},
+		write: {
+			added: ['c'],
+			removed: ['a']
+		}
+	});
+});
+
+test('8. verify ClientPermissions with PermissionTree-node', () => {
+	let clientPermissions = new ClientPermissions(defaultBasePermission);
+	clientPermissions.set(1, 3);
+
+	let PT = new PermissionTree();
+	PT.set('', defaultBasePermission, defaultBasePermission);
+	PT.set('node1', 'a', 'b');
+	PT.set('node1.node2', [1,2], [3,4]);
+	PT.set('node1.node2.node3', ['c','d'], 6);
+
+	let isVerified = clientPermissions.verify(PT, 'read', false);
+	expect(isVerified).toBe(true);
+	isVerified = clientPermissions.verify(PT.get('node1', true), 'read', false);
+	expect(isVerified).toBe(false);
+
+	isVerified = clientPermissions.verify(PT.get('node1.node2', true), 'read', false); //not against compiled permissions
+	expect(isVerified).toBe(true);
+	isVerified = clientPermissions.verify(PT.get('node1.node2', true), 'write', false); //not against compiled permissions
+	expect(isVerified).toBe(true);
+	
+	isVerified = clientPermissions.verify(PT.get('node1.node2', true), 'read', true); //against compiled permissions
+	expect(isVerified).toBe(false);
+	isVerified = clientPermissions.verify(PT.get('node1.node2', true), 'write', true); //against compiled permissions
+	expect(isVerified).toBe(false);
+
+	clientPermissions.set(['a',2], ['b',3]);
+	isVerified = clientPermissions.verify(PT.get('node1.node2', true), 'read', true);
+	expect(isVerified).toBe(true);
+	isVerified = clientPermissions.verify(PT.get('node1.node2', true), 'write', true);
+	expect(isVerified).toBe(true);
+	isVerified = clientPermissions.verify(PT.get('node1.node2.node3', true), 'read', true);
+	expect(isVerified).toBe(false);
+	isVerified = clientPermissions.verify(PT.get('node1.node2.node3', true), 'write', true);
+	expect(isVerified).toBe(false);
+
+	clientPermissions.set(['a',1,'d'], ['b',6,4]);
+	isVerified = clientPermissions.verify(PT.get('node1.node2.node3', true), 'read', true);
+	expect(isVerified).toBe(true);
+	isVerified = clientPermissions.verify(PT.get('node1.node2.node3', true), 'write', true);
+	expect(isVerified).toBe(true);
+
+	PT.set('node1.node2', null, null);
+	clientPermissions.set(null, null);
+	isVerified = clientPermissions.verify(PT.get('node1.node2', true), 'read', true);
+	expect(isVerified).toBe(false); //should still fail because actually looking at parent (node1) permissions
+	isVerified = clientPermissions.verify(PT.get('node1.node2', true), 'write', true);
+	expect(isVerified).toBe(false); //should still fail because actually looking at parent (node1) permissions
+
+	isVerified = clientPermissions.verify(PT, 'read', true);
+	expect(isVerified).toBe(true);
+	isVerified = clientPermissions.verify(PT, 'write', true);
+	expect(isVerified).toBe(true);
+
+	PT.set('', null, null);
+	isVerified = clientPermissions.verify(PT, 'read', true);
+	expect(isVerified).toBe(true);
+	isVerified = clientPermissions.verify(PT, 'write', true);
+	expect(isVerified).toBe(true);
+
+	PT.set('', 'x', ['y','z']);
+	clientPermissions.set(['x','a','c'], ['y','b',6]); //node2 is deleted
+	isVerified = clientPermissions.verify(PT.get('node1.node2.node3', true), 'read', true);
+	expect(isVerified).toBe(true);
+	isVerified = clientPermissions.verify(PT.get('node1.node2.node3', true), 'write', true);
+	expect(isVerified).toBe(true);
 });
