@@ -8,6 +8,10 @@
 "use strict"
 
 var OH = (function() {
+	//switch for debugging specific behaviors that are not harming or are fixed via one side (client or server)
+	//those scripts are too important to delete but the debugging affects performance so it should stay shut down
+	var OH_DEBUG = false;
+
 	var validChangeTypes = ['create','update','delete'];
 	
 	function areValidChanges(changes) {
@@ -33,12 +37,13 @@ var OH = (function() {
 			this.id;
 			this.delay = 9;
 			this.initiated = false;
-			this.serverUpdatesQueue = [];
+			this.serverUpdatesQueue = []; //the changes received from server
+			this.ownUpdates = []; //the changes the client emits on his own
 			
 			this.socket = io(`/oh-${domain}`, {
 				autoConnect: true,
-				query: { data: JSON.stringify(clientData) },
-				reconnection: false
+				reconnection: true,
+				query: { data: JSON.stringify(clientData) }
 			});
 
 			this.socket.on('init', (data) => { //gets initiated with data from the server
@@ -66,7 +71,24 @@ var OH = (function() {
 				//preventing infinite loop of emitting the changes we got from the server back to the server
 				let now = Date.now();
 
-				for(let change of changes) {
+				changesLoop: for(let change of changes) {
+					if(OH_DEBUG) {
+						for(let i = this.ownUpdates.length-1; i >= 0; i--) {
+							let ownChange = this.ownUpdates[i][0];
+			
+							if(change.type === ownChange.type && change.path === ownChange.path) { //probably a change we triggered, sent to server and got back again
+								if(change.type === 'delete' || change.value === ownChange.value) { //both are delete or both change to the same value
+									this.ownUpdates.splice(i, 1); //matched so delete it immediately
+									continue changesLoop; //skip this change because we are the ones initiated it
+								}
+							}
+			
+							if(now - this.ownUpdates[i][1] >= this.delay*2) {
+								this.ownUpdates.splice(i, 1); //no need to re-check this own-update again
+							}
+						}
+					}
+
 					this.serverUpdatesQueue.push([change, now]); //save the change - value references might be altered later
 					let parts = Proxserve.splitPath(change.path);
 					let currObj = this.object;
@@ -78,9 +100,11 @@ var OH = (function() {
 					if(parts.length === 1) { //previous loop finished on time
 						switch(change.type) {
 							case 'create':
-								if(typeof currObj[ parts[0] ] !== 'undefined') {
-									console.warn('tried to create a new property but instead updated an existing one:');
-									console.warn(change);
+								if(OH_DEBUG) {
+									if(typeof currObj[ parts[0] ] !== 'undefined') {
+										console.warn('tried to create a new property but instead updated an existing one:');
+										console.warn(change);
+									}
 								}
 								currObj[ parts[0] ] = change.value; //value might be an object reference
 								break;
@@ -128,6 +152,11 @@ var OH = (function() {
 			}
 
 			if(changes.length >= 1) {
+				if(OH_DEBUG) {
+					for(let change of changes) {
+						this.ownUpdates.push([change, now]);
+					}
+				}
 				this.socket.emit('change', changes);
 			}
 		}

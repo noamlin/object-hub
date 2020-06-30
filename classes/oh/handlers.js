@@ -165,23 +165,29 @@ function onObjectChange(changes) {
  * @param {Array} changes 
  */
 function onClientObjectChange(client, changes) {
-	if(areValidChanges(changes)) {
-		let proxy = ohInstances.getProxy(this);
-		let spreadedChanges = spread(changes);
-		let areTheSame = this.permissionTree.compareChanges(spreadedChanges, 'read');
-		let permittedChanges = [];
-		let notPermittedChanges = [];
+	let digestion;
+	try {
+		digestion = digest(changes, this);
+	} catch(error) {
+		console.error(error);
+		return;
+	}
 
-		if(areTheSame) { //better case where all changes require the same permission(s)
-			let permissionsNode = this.permissionTree.get(spreadedChanges[0].path, true);
+	let permittedChanges = [];
+	let notPermittedChanges = [];
+
+	//check that filteredChanges are not empty
+	if(areValidChanges(digestion.filteredChanges)) {
+		if(!digestion.requiresDifferentPermissions) { //better case where all changes require the same permission(s)
+			let permissionsNode = this.permissionTree.get(digestion.filteredChanges[0].path, true);
 			if(client.permissions.verify(permissionsNode, 'write', false)) {
-				permittedChanges = changes; //save bandwith by not using spreadedChanges if not necessary
+				permittedChanges = digestion.filteredChanges; //save bandwith by not using spreadedChanges if not necessary
 			} else {
-				notPermittedChanges = changes;
+				notPermittedChanges = digestion.filteredChanges;
 			}
 		}
 		else { //worst case where different changes require different permissions
-			for(let change of spreadedChanges) {
+			for(let change of digestion.spreadedChanges) {
 				let permissionsNode = this.permissionTree.get(change.path, true);
 				if(client.permissions.verify(permissionsNode, 'write', false)) {
 					permittedChanges.push(change);
@@ -190,6 +196,8 @@ function onClientObjectChange(client, changes) {
 				}
 			}
 		}
+
+		let proxy = ohInstances.getProxy(this);
 
 		let disapproveChanges = (changesList, reason) => {
 			for(let change of changesList) {
