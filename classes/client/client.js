@@ -86,8 +86,8 @@ module.exports = exports = class Client {
 		if(this.permissions.verify(permissionNode, 'read', false)) { //check if client even has permissions to access the root object
 			let proxy = ohInstances.getProxy(oh);
 			try {
-				let {object, property} = evalPath(proxy, path);
-				return this.prepareObjectIterator(cloneDeep(object[property]), permissionNode);
+				let { value } = evalPath(proxy, path);
+				return this.prepareObjectIterator(cloneDeep(value), permissionNode);
 			} catch(error) {
 				console.error(error);
 			}

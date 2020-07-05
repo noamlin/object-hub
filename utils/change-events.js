@@ -14,8 +14,8 @@ const ohInstances = require('../classes/oh/instances.js');
  * @param {String} path
  */
 function evalPath(obj, path) {
-	if(path === '') { //hack to evaluate own object (where a property isn't really needed)
-		return { object: { $$: obj }, property: '$$' };
+	if(path === '') {
+		return { object: obj, property: undefined, value: obj };
 	}
 
 	let segments = Proxserve.splitPath(path);
@@ -26,7 +26,7 @@ function evalPath(obj, path) {
 			throw new Error('Invalid path was given');
 		}
 	}
-	return { object: obj, property: segments[i] };
+	return { object: obj, property: segments[i], value: obj[ segments[i] ] };
 }
 
 var validChangeTypes = ['create','update','delete'];
