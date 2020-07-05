@@ -61,24 +61,24 @@ var demo = new OH('demo', server, infrastructure);
 var demoInstance = OH.getInstance(demo);
 
 //demoInstance.setPermissions('', 0, 0);
-demoInstance.setPermissions('must_1', 1, 1);
-demoInstance.setPermissions('must_1.must_2', 2, 2);
-demoInstance.setPermissions('or_34', [3,4], [3,4]);
-demoInstance.setPermissions('or_34.or_12', [1,2], 4);
-demoInstance.setPermissions('must_and_or', null, null);
-demoInstance.setPermissions('must_and_or.must_1', 1, 1);
-demoInstance.setPermissions('must_and_or.must_1.or_23', [2,3]);
-demoInstance.setPermissions('must_and_or.must_1.or_23.must_4', 4);
-demoInstance.setPermissions('must_and_or.must_1.or_23.must_4[0-1].or_56', [5,6]);
-demoInstance.setPermissions('must_and_or.must_1.or_23.must_4[2].or_78', [7,8]);
-demoInstance.setPermissions('must_and_or.or_12', [1,2], [1,2]);
-demoInstance.setPermissions('must_and_or.or_12.must_3', 3);
-demoInstance.setPermissions('must_and_or.or_12.must_3.or_45', [4,5]);
-demoInstance.setPermissions('must_and_or.or_12.must_3.or_45[1-2].must_6', 6, 6);
-demoInstance.setPermissions('must_and_or.or_12.must_3.or_45[0].must_7', 7, 7);
+demoInstance.setPermissions('must_1', 1, 1); //read: 1 , write: 1
+demoInstance.setPermissions('must_1.must_2', 2, 2); //read: 1 & 2 , write: 2
+demoInstance.setPermissions('or_34', [3,4], [3,4]); //read: [3,4] , write: [3,4]
+demoInstance.setPermissions('or_34.or_12', [1,2], 4); //read: [3,4] & [1,2] , write: 4
+demoInstance.setPermissions('must_and_or', null, null); //read: 0 , write: 0
+demoInstance.setPermissions('must_and_or.must_1', 1, 1); //read: 1 , write: 1
+demoInstance.setPermissions('must_and_or.must_1.or_23', [2,3], [2,3]); //read: 1 & [2,3] , write: [2,3]
+demoInstance.setPermissions('must_and_or.must_1.or_23.must_4', 4, 4); //read: 1 & [2,3] & 4 , write: 4
+demoInstance.setPermissions('must_and_or.must_1.or_23.must_4[0-1].or_56', [5,6]); //read: 1 & [2,3] & 4 & [5,6] , write: 4
+demoInstance.setPermissions('must_and_or.must_1.or_23.must_4[2].or_78', [7,8]); //read: 1 & [2,3] & 4 & [7,8] , write: 4
+demoInstance.setPermissions('must_and_or.or_12', [1,2], [1,2]); //read: [1,2] , write: [1,2]
+demoInstance.setPermissions('must_and_or.or_12.must_3', 3, 3); //read: [1,2] & 3 , write: 3
+demoInstance.setPermissions('must_and_or.or_12.must_3.or_45', [4,5]); //read: [1,2] & 3 & [4,5] , write: 3
+demoInstance.setPermissions('must_and_or.or_12.must_3.or_45[1-2].must_6', 6, 6); //read: [1,2] & 3 & [4,5] & 6 , write: 6
+demoInstance.setPermissions('must_and_or.or_12.must_3.or_45[0].must_7', 7, 7); //read: [1,2] & 3 & [4,5] & 7 , write: 7
 
 demoInstance.once('connection', function() {
-	//beginRandomDataManipulation();
+	//beginRandomDataManipulation(400);
 });
 demoInstance.on('connection', function(client, clientData, init) {
 	if(clientData) {
@@ -193,10 +193,10 @@ var alterations = [
 ];
 
 var i = 0;
-function beginRandomDataManipulation() {
+function beginRandomDataManipulation(delay) {
 	setInterval(() => {
 		alterations[i]();
 		i++;
 		if(i === alterations.length) i = 0;
-	}, 200);
+	}, delay);
 }

@@ -12,6 +12,7 @@ const ohInstances = require('../oh/instances.js');
 const { ClientPermissions } = require('../permissions/permissions.js');
 const { defaultBasePermission } = require('../../utils/globals.js');
 const { str2VarName, realtypeof } = require('../../utils/variables.js');
+const { evalPath } = require('../../utils/change-events.js');
 
 module.exports = exports = class Client {
 	constructor(socket) {
@@ -60,7 +61,7 @@ module.exports = exports = class Client {
 	 * @param {Object} obj - an object/sub-object from the proxy
 	 * @param {Object} permissionNode - a permissions map
 	 */
-	prepareObject(obj, permissionNode) {
+	prepareObjectIterator(obj, permissionNode) {
 		let typeofobj = realtypeof(obj);
 
 		if(typeofobj === 'Object' || typeofobj === 'Array') { //they both behave the same
@@ -68,7 +69,7 @@ module.exports = exports = class Client {
 			for(let prop of props) {
 				if(permissionNode[prop]) { //permissions for this property or sub-properties exists, so a validation is required
 					if(this.permissions.verify(permissionNode[prop], 'read', false)) {
-						this.prepareObject(obj[prop], permissionNode[prop]);
+						this.prepareObjectIterator(obj[prop], permissionNode[prop]);
 					} else {
 						delete obj[prop];
 					}
@@ -79,20 +80,31 @@ module.exports = exports = class Client {
 		return obj; //it's a recursion but the only one expecting a return value is whoever called this
 	}
 
+	prepareObject(oh, path) {
+		let permissionNode = oh.permissionTree.get(path, true);
+
+		if(this.permissions.verify(permissionNode, 'read', false)) { //check if client even has permissions to access the root object
+			let proxy = ohInstances.getProxy(oh);
+			try {
+				let {object, property} = evalPath(proxy, path);
+				return this.prepareObjectIterator(cloneDeep(object[property]), permissionNode);
+			} catch(error) {
+				console.error(error);
+			}
+		}
+
+		return undefined;
+	}
+
 	init(oh) {
 		this.isInitiated = true;
 		oh.clients.set(this.id, this);
 
-		let proxy = ohInstances.getProxy(oh);
-
 		let data = {
-			obj: {},
+			obj: this.prepareObject(oh, ''),
 			id: this.id
 		};
-
-		if(this.permissions.verify(oh.permissionTree, 'read', false)) { //check if client even has permissions to access the root object
-			data.obj = this.prepareObject(cloneDeep(proxy), oh.permissionTree);
-		}
+		if(data.obj === undefined) data.obj = {};
 
 		oh.io.to(this.socket.id).emit('init', data);
 

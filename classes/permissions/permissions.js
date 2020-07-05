@@ -2,12 +2,13 @@
 
 const Proxserve = require('proxserve');
 const { isEqual } = require('lodash');
-const { realtypeof } = require('../../utils/variables.js');
+const { realtypeof, isNumeric } = require('../../utils/variables.js');
 const { splitPath } = require('../../utils/change-events.js');
-const { defaultBasePermission, permissionsKey } = require('../../utils/globals.js');
+const { defaultBasePermission, permissionsKey, path2nodeKey } = require('../../utils/globals.js');
 
 class PermissionTree {
 	constructor() {
+		this[path2nodeKey] = new Map();
 		//initiate empty object on base object (top parent) in order to always have something to inherit from
 		this[permissionsKey] = {
 			read: new Set(),
@@ -15,6 +16,50 @@ class PermissionTree {
 			compiled_read: { must: new Set(), or: [] },
 			compiled_write: { must: new Set(), or: [] }
 		};
+	}
+
+	/**
+	 * get a node by path if exist.
+	 * if doesn't exist then traverse through the path and create the node and all appropriate parents
+	 * @param {String} path - path to the node
+	 */
+	getCreateNode(path) {
+		if(path[0] === '.') {
+			path = path.slice(1);
+		}
+		
+		if(path === '') {
+			return this;
+		}
+
+		let node = this[path2nodeKey].get(path);
+		if(typeof node !== 'undefined') {
+			return node;
+		}
+		else {
+			//handle regular path
+			node = this;
+			let pathArr = Proxserve.splitPath(path); //root.sub[1].alt[2] --> [root,sub,1,alt,2]
+			let rePath = '';
+
+			//traverse to current path's object and also initiate objects if needed
+			for(let part of pathArr) {
+				if(isNumeric(part)) {
+					rePath = `${rePath}[${part}]`;
+				} else {
+					rePath = `${rePath}.${part}`;
+				}
+
+				if(typeof node[part] !== 'object') {
+					node[part] = {};
+					node[part][permissionsKey] = Object.create(node[permissionsKey]);
+					this[path2nodeKey].set(rePath, node[part]);
+				}
+				node = node[part];
+			}
+		}
+
+		return node;
 	}
 
 	/**
@@ -45,20 +90,7 @@ class PermissionTree {
 			return;
 		}
 
-		//handle regular path
-		let pathObj = this;
-		let pathArr = Proxserve.splitPath(path); //root.sub[1].alt[2] --> [root,sub,1,alt,2]
-
-		//traverse to current path's object and also initiate objects if needed
-		for(let part of pathArr) {
-			if(part === '') continue; //empty path means root object so we need to skip this iteration because pathObj[''] will create a new object
-
-			if(typeof pathObj[part] !== 'object') {
-				pathObj[part] = {};
-				pathObj[part][permissionsKey] = Object.create(pathObj[permissionsKey]);
-			}
-			pathObj = pathObj[part];
-		}
+		let node = this.getCreateNode(path);
 
 		//handle actual reads/writes
 		let RW = { 'read': read, 'write': write };
@@ -69,10 +101,10 @@ class PermissionTree {
 				continue;
 			}
 			else if(typeofRW === 'Null') { //null read or write forces delete
-				if(path === '') { //we are trying to delete root permission which everybody inherits from
-					pathObj[permissionsKey][type].clear();
+				if(node === this) { //we are trying to delete root permission which everybody inherits from
+					node[permissionsKey][type].clear();
 				} else {
-					delete pathObj[permissionsKey][type];
+					delete node[permissionsKey][type];
 				}
 			}
 			else { //normal read/write
@@ -80,14 +112,14 @@ class PermissionTree {
 					RW[type] = [RW[type]];
 				}
 	
-				pathObj[permissionsKey][type] = new Set();
+				node[permissionsKey][type] = new Set();
 
 				for(let permission of RW[type]) {
-					pathObj[permissionsKey][type].add(permission);
+					node[permissionsKey][type].add(permission);
 				}
 			}
 
-			this.compile(pathArr, type);
+			this.compile(Proxserve.splitPath(path), type);
 		}
 	}
 
@@ -103,18 +135,18 @@ class PermissionTree {
 		if(pathArr[0] !== '') {
 			pathArr.unshift(''); //force iterating over root object too
 		}
-		let pathObj = this;
-		let pathPermissions = pathObj[permissionsKey][type];
+		let node = this;
+		let pathPermissions = node[permissionsKey][type];
 		let compiled = { must: new Set(), or: [] };
 
 		for(let part of pathArr) {
 			if(part !== '') {
-				pathObj = pathObj[part]; //current part of path (current parent)
+				node = node[part]; //current part of path (current parent)
 
-				if(pathObj[permissionsKey][type] === pathPermissions) { //same permissions of parent, meaning this level doesn't have its own permissions
+				if(node[permissionsKey][type] === pathPermissions) { //same permissions of parent, meaning this level doesn't have its own permissions
 					continue;
 				}
-				pathPermissions = pathObj[permissionsKey][type];
+				pathPermissions = node[permissionsKey][type];
 			}
 
 			let PPiter = pathPermissions.values(); //pathPermissions iterator
@@ -150,26 +182,26 @@ class PermissionTree {
 		}
 
 		let hasOwnPermissions = false;
-		if(pathObj[permissionsKey].hasOwnProperty(type) && pathObj[permissionsKey][type].size >= 1) {
+		if(node[permissionsKey].hasOwnProperty(type) && node[permissionsKey][type].size >= 1) {
 			hasOwnPermissions = true;
 		}
 		
 		if(hasOwnPermissions) {
-			pathObj[permissionsKey][`compiled_${type}`] = compiled;
+			node[permissionsKey][`compiled_${type}`] = compiled;
 		} else {
 			//reached here via recursion, but this object doesn't have it's own permissions
 			//so it doesn't need compiled permissions. instead it will inherit from parent.
 			if(pathArr.length === 1 && pathArr[0] === '') { //we are trying to delete root permission which everybody inherits from
-				pathObj[permissionsKey][`compiled_${type}`].must.clear();
-				pathObj[permissionsKey][`compiled_${type}`].or.length = 0;
+				node[permissionsKey][`compiled_${type}`].must.clear();
+				node[permissionsKey][`compiled_${type}`].or.length = 0;
 			} else {
-				delete pathObj[permissionsKey][`compiled_${type}`];
+				delete node[permissionsKey][`compiled_${type}`];
 			}
 		}
 
-		//update all children that might be affected. brute force.. inefficient..
-		//but it doesn't matter because it runs once whenever setting/updating new permissions, and not during actual runtime
-		let keys = Object.keys(pathObj);
+		//update all children that might be affected. brute force.. inefficient.. but it doesn't matter
+		//because it runs once whenever setting/updating new permissions, and not during actual runtime
+		let keys = Object.keys(node);
 		for(let key of keys) {
 			this.compile(pathArr.concat(key), type);
 		}
@@ -181,28 +213,12 @@ class PermissionTree {
 	 * @param {Boolean} [getNode] - returns the node of the tree or a permission object
 	 */
 	get(path, getNode=false) {
-		let parts = splitPath(path);
-		let currentObj = this;
+		let node = this.getCreateNode(path);
 
-		if(parts[0] === '') { //meaning refering to 'this'
-			parts.shift();
-		}
-
-		if(parts.length !== 0) {
-			for(let part of parts) {
-				if(typeof currentObj[part] !== 'undefined') {
-					currentObj = currentObj[part];
-				}
-				else {
-					break;
-				}
-			}
-		}
-		
 		if(getNode) {
-			return currentObj;
+			return node;
 		}
-		return currentObj[permissionsKey];
+		return node[permissionsKey];
 	}
 
 	/**
@@ -298,7 +314,7 @@ class ClientPermissions {
 	}
 
 	/**
-	 * check for permission-object (received via path) if client is permitted to read it
+	 * check if client is permitted to read/write a path (via its permission-node)
 	 * @param {Object} permissionsNode
 	 * @param {String} type - 'read' or 'write'
 	 * @param {Boolean} [compiled] - verify against current node premission or compiled-with-parents permissions
@@ -350,6 +366,27 @@ class ClientPermissions {
 
 			return true; //this category doesn't require permissions
 		}
+	}
+
+	/**
+	 * recursively walk over all nodes verify client's permission.
+	 * inefficient process that should not be run often
+	 * @param {Object} permissionsNode
+	 * @param {String} type - 'read' or 'write'
+	 * @param {Boolean} [compiled] - verify against current node premission or compiled-with-parents permissions
+	 */
+	recursiveVerify(permissionsNode, type, compiled=false) {
+		if(!this.verify(permissionsNode, type, compiled)) {
+			return false;
+		} else {
+			let keys = Object.keys(permissionsNode);
+			for(let key of keys) {
+				if(!this.verify(permissionsNode[key], type, compiled)) {
+					return false;
+				}
+			}
+		}
+		return true;
 	}
 }
 

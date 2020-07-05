@@ -7,6 +7,7 @@ const { infrastructure, MockSocket, mockIO } = require('./mocks.js');
 const { cloneDeep } = require('lodash');
 
 test('splitPath method', () => {
+	expect(splitPath('')).toEqual(['']);
 	expect(splitPath('ab.cd.ef')).toEqual(['ab','cd','ef']);
 	expect(splitPath('ab.cd[1].ef[2][3]')).toEqual(['ab','cd','1','ef','2','3']);
 });
@@ -21,6 +22,8 @@ test('evalPath method', () => {
 	};
 	expect(evalPath(obj, 'aa.bb.cc')).toEqual({ object: { cc:123 }, property: 'cc' });
 	expect(evalPath(obj, 'aa.bb')).toEqual({ object: { bb: { cc:123 } }, property: 'bb' });
+	expect(evalPath(obj, 'aa')).toEqual({ object: obj, property: 'aa' });
+	expect(evalPath(obj, '')).toEqual({ object: { $$: obj }, property: '$$' });
 
 	obj.dd = {
 		ee: [
@@ -97,7 +100,7 @@ test('digest changes method', () => {
 	expect(digestedChanges.filteredChanges).toEqual(shouldBeFiltered);
 	expect(digestedChanges.spreadedChanges).toEqual(shouldBe);
 	expect(digestedChanges.requiresDifferentPermissions).toBe(false);
-	
+
 	//test heavy spreading with different permissions
 	changes = [
 		{ path: '.dynamic.abc', oldValue: undefined, type: 'create', value: 'primitive one' },

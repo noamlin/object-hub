@@ -176,39 +176,46 @@ function onClientObjectChange(client, changes) {
 	let permittedChanges = [];
 	let notPermittedChanges = [];
 
+	let proxy = ohInstances.getProxy(this);
+
 	//check that filteredChanges are not empty
 	if(areValidChanges(digestion.filteredChanges)) {
 		if(!digestion.requiresDifferentPermissions) { //better case where all changes require the same permission(s)
 			let permissionsNode = this.permissionTree.get(digestion.filteredChanges[0].path, true);
-			if(client.permissions.verify(permissionsNode, 'write', false)) {
-				permittedChanges = digestion.filteredChanges; //save bandwith by not using spreadedChanges if not necessary
-			} else {
-				notPermittedChanges = digestion.filteredChanges;
-			}
-		}
-		else { //worst case where different changes require different permissions
-			for(let change of digestion.spreadedChanges) {
-				let permissionsNode = this.permissionTree.get(change.path, true);
-				if(client.permissions.verify(permissionsNode, 'write', false)) {
-					permittedChanges.push(change);
-				} else {
-					notPermittedChanges.push(change);
-				}
+			let isPermitted = client.permissions.verify(permissionsNode, 'write', false);
+			if(!isPermitted) {
+				notPermittedChanges = digestion.filteredChanges; //client isn't permitted to anything
 			}
 		}
 
-		let proxy = ohInstances.getProxy(this);
+		if(notPermittedChanges.length === 0) { //will skip this part if discovered client isn't permitted to anything
+			for(let change of digestion.filteredChanges) {
+				let strictCheck = false;
+				if(change.type !== 'delete' && typeof change.value === 'object') { //trying to create a new object
+					strictCheck = true;
+				} else if(change.type === 'delete') { //maybe trying to delete an object
+					let {object, property} = evalPath(proxy, change.path);
+					if(typeof object[property] === 'object') {
+						strictCheck = true;
+					}
+				}
+	
+				if(strictCheck) {
+					let permissionsNode = this.permissionTree.get(change.path, true);
+					let isPermitted = client.permissions.recursiveVerify(permissionsNode, 'write', false);
+					if(!isPermitted) {
+						notPermittedChanges.push(change);
+					} else {
+						permittedChanges.push(change);
+					}
+				} else { //changing a primitive value
+					permittedChanges.push(change);
+				}
+			}
+		}
 
 		let disapproveChanges = (changesList, reason) => {
 			for(let change of changesList) {
-				let currentPropertyValue = undefined;
-				try {
-					let {object, property} = evalPath(proxy, change.path);
-					currentPropertyValue = object[ property ];
-				} catch(error) {
-					console.error(error);
-				}
-	
 				switch(change.type) {
 					case 'create':
 						change.oldValue = change.value;
@@ -217,11 +224,11 @@ function onClientObjectChange(client, changes) {
 						break;
 					case 'update':
 						change.oldValue = change.value;
-						change.value = currentPropertyValue;
+						change.value = client.prepareObject(this, change.path);
 						break;
 					case 'delete':
 						change.oldValue = undefined;
-						change.value = currentPropertyValue;
+						change.value = client.prepareObject(this, change.path);
 						change.type = 'create';
 						break;
 				}

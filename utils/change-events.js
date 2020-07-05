@@ -14,6 +14,10 @@ const ohInstances = require('../classes/oh/instances.js');
  * @param {String} path
  */
 function evalPath(obj, path) {
+	if(path === '') { //hack to evaluate own object (where a property isn't really needed)
+		return { object: { $$: obj }, property: '$$' };
+	}
+
 	let segments = Proxserve.splitPath(path);
 	let i;
 	for(i = 0; i <= segments.length - 2; i++) { //iterate until one before last property because they all must exist
