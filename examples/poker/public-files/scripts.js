@@ -1,6 +1,6 @@
 "use strict";
 
-var game, name, myID, me;
+var poker, name, myID, me;
 var playersElm;
 
 window.addEventListener('DOMContentLoaded', (event) => {
@@ -11,8 +11,9 @@ window.addEventListener('DOMContentLoaded', (event) => {
 		if(name === '') {
 			alert('Please choose a nickname!');
 		} else {
-			game = new OH('poker', {nickname: name}, () => {
-				myID = game.id;
+			let pokerInstance = new OH('poker', {nickname: name}, (obj) => {
+				poker = obj;
+				myID = poker.id;
 				beginGame();
 			});
 		}
@@ -20,9 +21,9 @@ window.addEventListener('DOMContentLoaded', (event) => {
 });
 
 function beginGame() {
-	for(let i=0; i < game.poker.players.length; i++) {
-		if(game.poker.players[i] && game.poker.players[i].id === myID) {
-			me = game.poker.players[i];
+	for(let i=0; i < poker.players.length; i++) {
+		if(poker.players[i] && poker.players[i].id === myID) {
+			me = poker.players[i];
 			break;
 		}
 	}
@@ -36,7 +37,7 @@ function beginGame() {
 		document.querySelector('div.game div.admin-panel').style.display = 'block';
 	}
 
-	game.poker.on('change', (changes) => {
+	poker.on('change', (changes) => {
 		switch(changes[0].path) {
 			case '.status': updateStatus(); break;
 			case '.activePlayer': updateActivePlayer(); break;
@@ -48,22 +49,22 @@ function beginGame() {
 }
 
 function updateStatus() {
-	document.querySelector('div.game span.game-status').textContent = game.poker.status;
+	document.querySelector('div.game span.game-status').textContent = poker.status;
 }
 function updateActivePlayer() {
-	document.querySelector('div.game span.now-playing').textContent = game.poker.activePlayer;
+	document.querySelector('div.game span.now-playing').textContent = poker.activePlayer;
 }
 function updatePlayersList() {
 	while(playersElm.firstChild){
 		playersElm.removeChild(playersElm.firstChild);
 	}
 
-	for(let i=0; i < game.poker.players.length; i++) {
-		if(!game.poker.players[i]) continue;
+	for(let i=0; i < poker.players.length; i++) {
+		if(!poker.players[i]) continue;
 
 		let span = document.createElement('span');
-		span.textContent = `player #${i+1} - name: ${game.poker.players[i].name} - chips: ${game.poker.players[i].chips}`;
-		if(game.poker.players[i].id === me.id) {
+		span.textContent = `player #${i+1} - name: ${poker.players[i].name} - chips: ${poker.players[i].chips}`;
+		if(poker.players[i].id === me.id) {
 			span.style.color = '#70B0FF';
 		}
 		playersElm.appendChild(span);

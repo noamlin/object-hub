@@ -130,19 +130,20 @@ var OH = (function() {
 
 		onObjectChange(changes) {
 			let now = Date.now();
+			//shallow copy in order to to change the reference of changes which is also used by client's listeners
+			let clientChanges = changes.slice(0);
 
 			for(let i = this.serverUpdatesQueue.length-1; i >= 0; i--) {
 				let serverChange = this.serverUpdatesQueue[i][0];
 
-				for(let j = changes.length-1; j >= 0; j--) {
-					let change = changes[j];
+				for(let j = clientChanges.length-1; j >= 0; j--) {
+					let change = clientChanges[j];
 					
-					if(change.type === serverChange.type && change.path === serverChange.path) { //probably the same change
-						if(change.type === 'delete' || change.value === serverChange.value) { //both are delete or both change to the same value
-							changes.splice(j, 1); //no need to send this change to the server
+					if(change.type === serverChange.type && change.path === serverChange.path //probably the same change
+						&& (change.type === 'delete' || change.value === serverChange.value)) { //both are delete or both change to the same value
+							clientChanges.splice(j, 1); //no need to send this change to the server
 							this.serverUpdatesQueue[i][1] = 0; //will get it deleted
 							break;
-						}
 					}
 				}
 
@@ -151,13 +152,13 @@ var OH = (function() {
 				}
 			}
 
-			if(changes.length >= 1) {
+			if(clientChanges.length >= 1) {
 				if(OH_DEBUG) {
-					for(let change of changes) {
+					for(let change of clientChanges) {
 						this.ownUpdates.push([change, now]);
 					}
 				}
-				this.socket.emit('change', changes);
+				this.socket.emit('change', clientChanges);
 			}
 		}
 	};

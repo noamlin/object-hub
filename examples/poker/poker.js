@@ -6,59 +6,53 @@ const http = require('http');
 const express = require('express');
 const app = express();
 const OH = require(`${baseDir}/index.js`);
-const { isNumeric } = require(`${baseDir}/utils/general.js`);
+const { cloneDeep } = require('lodash');
 
 const server = http.createServer(app);
 server.listen(1337);
 
-app.use('/public-files', express.static(`${baseDir}/examples/poker/public-files`));
-
 app.get('/', (req, res) => { res.sendFile(`${baseDir}/examples/poker/index.html`); });
 app.get(/\/game\d*.html/, (req, res) => { res.sendFile(`${baseDir}/examples/poker/game.html`); });
-app.get('/oh.js', (req, res) => { res.sendFile(`${baseDir}/client/oh.js`); });
+app.get('/oh.js', (req, res) => { res.sendFile(`${baseDir}/client-side/oh.js`); });
 app.get('/proxserve.js', (req, res) => { res.sendFile(`${baseDir}/node_modules/proxserve/index.js`); });
+app.use('/public-files', express.static(`${baseDir}/examples/poker/public-files`));
 
-var game = new OH('poker', server, {});
+var poker = new OH('poker', server, {});
+var pokerInstance = OH.getInstance(poker);
 
-game.setPermissions('poker.cards', 'no_one', 'admin');
+pokerInstance.setPermissions('cards', 'no_one', 'admin');
 
-game.on('connection', function(socket, clientData, init) {
-	if(this.clients.size === 1) {
+pokerInstance.on('connection', function(client, clientData, init) {
+	if(this.clients.size === 0) {
 		initiateGame();
 	}
 	else if(this.clients.size > 8) {
 		return; //don't connect more than 8 players
 	}
 
-	let id = socket.OH.id;
-	let playerIndex = this.poker.players.length; //future to be
+	let id = client.id;
+	let playerIndex = poker.players.length; //future to be
 
-	this.setPermissions(`poker.players[${playerIndex}]`, id); //only client himself can write to this
+	this.setPermissions(`poker.players[${playerIndex}]`, 0, id); //only client himself can write to this
 	this.setPermissions(`poker.players[${playerIndex}].personal`, id, id); //only client himself can read & write to this
 
-	this.poker.players.push({
-		id: id,
+	poker.players.push({
 		name: clientData.nickname,
 		chips: 1000,
 		personal: {
-			cards: [],
-			auth: 'normal'
+			id: id,
+			cards: []
 		}
 	});
 
-	if(this.clients.size === 1) {
-		//this.setClientPermissions(socket, 'admin', 'admin'); //first client to log-in will become admin
-		this.poker.players[playerIndex].personal.auth = 'admin';
-	}
-
 	init();
 });
-game.on('disconnection', function(socket, reason) {
-	let id = socket.OH.id;
-	for(let i=0; i < this.poker.players.length; i++) {
-		if(this.poker.players[i] && this.poker.players[i].id === id) {
-			this.poker.players[i] = null;
-			//this.poker.players.splice(i, 1);
+pokerInstance.on('disconnection', function(client, reason) {
+	let id = client.id;
+	for(let i=0; i < poker.players.length; i++) {
+		if(poker.players[i] && poker.players[i].personal.id === id) {
+			poker.players[i] = null;
+			//poker.players.splice(i, 1);
 			break;
 		}
 	}
@@ -67,26 +61,21 @@ game.on('disconnection', function(socket, reason) {
 	}
 });
 
+var cardTypes = ['clubs','diamonds','hearts','spades'];
+var cardNumbers = ['ace',2,3,4,5,6,7,8,9,10,'jack','queen','king'];
+var cards = [];
+for(let type of cardTypes) {
+	for(let num of cardNumbers) {
+		cards.push({ type: type, number: num, available: true });
+	}
+}
+
 function initiateGame() {
-	game.poker.players = [];
-	game.poker.table = {
+	poker.players = [];
+	poker.table = {
 		flop: [0, 0, 0], turn: 0, river: 0
 	};
-	game.poker.cards = [
-		['ace', 'clubs', true], ['ace', 'diamonds', true], ['ace', 'hearts', true], ['ace', 'spades', true],
-		['2', 'clubs', true], ['2', 'diamonds', true], ['2', 'hearts', true], ['2', 'spades', true],
-		['3', 'clubs', true], ['3', 'diamonds', true], ['3', 'hearts', true], ['3', 'spades', true],
-		['4', 'clubs', true], ['4', 'diamonds', true], ['4', 'hearts', true], ['4', 'spades', true],
-		['5', 'clubs', true], ['5', 'diamonds', true], ['5', 'hearts', true], ['5', 'spades', true],
-		['6', 'clubs', true], ['6', 'diamonds', true], ['6', 'hearts', true], ['6', 'spades', true],
-		['7', 'clubs', true], ['7', 'diamonds', true], ['7', 'hearts', true], ['7', 'spades', true],
-		['8', 'clubs', true], ['8', 'diamonds', true], ['8', 'hearts', true], ['8', 'spades', true],
-		['9', 'clubs', true], ['9', 'diamonds', true], ['9', 'hearts', true], ['9', 'spades', true],
-		['10', 'clubs', true], ['10', 'diamonds', true], ['10', 'hearts', true], ['10', 'spades', true],
-		['jacks', 'clubs', true], ['jacks', 'diamonds', true], ['jacks', 'hearts', true], ['jacks', 'spades', true],
-		['queens', 'clubs', true], ['queens', 'diamonds', true], ['queens', 'hearts', true], ['queens', 'spades', true],
-		['kings', 'clubs', true], ['kings', 'diamonds', true], ['kings', 'hearts', true], ['kings', 'spades', true]
-	];
-	game.poker.status = 'round-end';
-	game.poker.activePlayer = '';
+	poker.cards = cloneDeep(cards);
+	poker.status = 'round-end';
+	poker.activePlayer = '';
 }
