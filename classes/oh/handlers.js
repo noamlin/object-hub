@@ -193,7 +193,7 @@ function onClientObjectChange(client, changes) {
 				let strictCheck = false;
 				if(change.type !== 'delete' && typeof change.value === 'object') { //trying to create a new object
 					strictCheck = true;
-				} else if(change.type === 'delete') { //maybe trying to delete an object
+				} else { //maybe trying to overwrite/delete an existing object
 					let { value } = evalPath(proxy, change.path);
 					if(typeof value === 'object') {
 						strictCheck = true;

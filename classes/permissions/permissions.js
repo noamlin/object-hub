@@ -381,7 +381,7 @@ class ClientPermissions {
 		} else {
 			let keys = Object.keys(permissionsNode);
 			for(let key of keys) {
-				if(!this.verify(permissionsNode[key], type, compiled)) {
+				if(!this.recursiveVerify(permissionsNode[key], type, compiled)) {
 					return false;
 				}
 			}

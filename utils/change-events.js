@@ -8,27 +8,6 @@ const { realtypeof } = require('./variables.js');
 const { forceEventChangeKey } = require('../utils/globals.js');
 const ohInstances = require('../classes/oh/instances.js');
 
-/**
- * evaluate a long path and return the designated object and its referred property
- * @param {Object} obj
- * @param {String} path
- */
-function evalPath(obj, path) {
-	if(path === '') {
-		return { object: obj, property: undefined, value: obj };
-	}
-
-	let segments = Proxserve.splitPath(path);
-	let i;
-	for(i = 0; i <= segments.length - 2; i++) { //iterate until one before last property because they all must exist
-		obj = obj[segments[i]];
-		if(typeof obj === 'undefined') {
-			throw new Error('Invalid path was given');
-		}
-	}
-	return { object: obj, property: segments[i], value: obj[ segments[i] ] };
-}
-
 var validChangeTypes = ['create','update','delete'];
 
 function areValidChanges(changes) {
@@ -143,7 +122,7 @@ function digest(changes, oh, digested) {
 
 module.exports = exports = {
 	splitPath: Proxserve.splitPath,
-	evalPath: evalPath,
+	evalPath: Proxserve.evalPath,
 	areValidChanges: areValidChanges,
 	digest: digest
 };

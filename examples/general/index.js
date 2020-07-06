@@ -78,7 +78,7 @@ demoInstance.setPermissions('must_and_or.or_12.must_3.or_45[1-2].must_6', 6, 6);
 demoInstance.setPermissions('must_and_or.or_12.must_3.or_45[0].must_7', 7, 7); //read: [1,2] & 3 & [4,5] & 7 , write: 7
 
 demoInstance.once('connection', function() {
-	beginRandomDataManipulation(400);
+	//beginRandomDataManipulation(400);
 });
 demoInstance.on('connection', function(client, clientData, init) {
 	if(clientData) {
@@ -195,7 +195,11 @@ var alterations = [
 var i = 0;
 function beginRandomDataManipulation(delay) {
 	setInterval(() => {
-		alterations[i]();
+		try {
+			alterations[i]();
+		} catch(error) {
+			console.error(error);
+		}
 		i++;
 		if(i === alterations.length) i = 0;
 	}, delay);

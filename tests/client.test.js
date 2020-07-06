@@ -143,7 +143,7 @@ test('5. prepareObject method', (done) => {
 
 	function part2() {
 		client.setPermissions(1);
-		let obj = client.prepareObject(cloneDeep(proxy), instance.permissionTree);
+		let obj = client.prepareObject(instance, '');
 		expect(obj).toEqual({
 			a_number: 1.23,
 			a_string: 'some string',
@@ -164,7 +164,7 @@ test('5. prepareObject method', (done) => {
 
 	function part3() {
 		client.setPermissions(2);
-		let obj = client.prepareObject(cloneDeep(proxy), instance.permissionTree);
+		let obj = client.prepareObject(instance, '');
 		expect(obj).toEqual({
 			a_string: 'some string',
 			nested1: {
@@ -186,7 +186,7 @@ test('5. prepareObject method', (done) => {
 
 	function part4() {
 		client.setPermissions(3);
-		let obj = client.prepareObject(cloneDeep(proxy), instance.permissionTree);
+		let obj = client.prepareObject(instance, '');
 		expect(obj).toEqual({
 			a_string: 'some string',
 			nested1: {
@@ -208,7 +208,7 @@ test('5. prepareObject method', (done) => {
 
 	function part5() {
 		client.setPermissions([1,3]);
-		let obj = client.prepareObject(cloneDeep(proxy), instance.permissionTree);
+		let obj = client.prepareObject(instance, '');
 		expect(obj).toEqual({
 			a_number: 1.23,
 			a_string: 'some string',
@@ -230,8 +230,23 @@ test('5. prepareObject method', (done) => {
 	}
 
 	function part6() {
+		client.setPermissions([1,3]);
+
+		let obj = client.prepareObject(instance, 'a_number');
+		expect(obj).toEqual(1.23);
+
+		obj = client.prepareObject(instance, 'nested1.nested2');
+		expect(obj).toEqual({ nested3: true });
+
+		obj = client.prepareObject(instance, '.an_arr[5].nestedArr[0]');
+		expect(obj).toEqual({c:'c'});
+
+		part7();
+	}
+
+	function part7() {
 		//one crazy sub-property that covers all possible combinations
-		let mockProxy = { allCombinations: { obj1: { obj2: {
+		let anotherInfrastructure = { allCombinations: { obj1: { obj2: {
 			arr1: [0,1,2,
 				[
 					0,
@@ -240,6 +255,9 @@ test('5. prepareObject method', (done) => {
 				]
 			]
 		} } } };
+
+		let proxy = new OH('test', mocks.server, anotherInfrastructure);
+		let instance = OH.getInstance(proxy);
 
 		instance.setPermissions('allCombinations.obj1', 4);
 		instance.setPermissions('allCombinations.obj1.obj2', 5);
@@ -253,63 +271,63 @@ test('5. prepareObject method', (done) => {
 		instance.setPermissions('allCombinations.obj1.obj2.arr1[3][1][0].obj3.arr2[2].c', 13);
 
 		client.setPermissions(0);
-		let obj = client.prepareObject(cloneDeep(mockProxy), instance.permissionTree);
+		let obj = client.prepareObject(instance, '');
 		expect(obj).toEqual({ allCombinations: {} });
 
 		client.setPermissions(4);
-		obj = client.prepareObject(cloneDeep(mockProxy), instance.permissionTree);
+		obj = client.prepareObject(instance, '');
 		expect(obj).toEqual({ allCombinations: { obj1: {} } });
 
 		client.setPermissions([4,5]);
-		obj = client.prepareObject(cloneDeep(mockProxy), instance.permissionTree);
+		obj = client.prepareObject(instance, '');
 		expect(obj).toEqual({ allCombinations: { obj1: { obj2: {} } } });
 
 		client.setPermissions([4,5,6]);
-		obj = client.prepareObject(cloneDeep(mockProxy), instance.permissionTree);
+		obj = client.prepareObject(instance, '');
 		expect(obj).toEqual({ allCombinations: { obj1: { obj2: { arr1: [0,1,2, [undefined,undefined,undefined]] } } } });
 
 		client.setPermissions([4,5,6,7]);
-		obj = client.prepareObject(cloneDeep(mockProxy), instance.permissionTree);
+		obj = client.prepareObject(instance, '');
 		expect(obj).toEqual({ allCombinations: { obj1: { obj2: { arr1: [0,1,2, [0, undefined, undefined]] } } } });
 
 		client.setPermissions([4,5,6,7,8]);
-		obj = client.prepareObject(cloneDeep(mockProxy), instance.permissionTree);
+		obj = client.prepareObject(instance, '');
 		expect(obj).toEqual({ allCombinations: { obj1: { obj2: { arr1: [0,1,2, [0, undefined, 2]] } } } });
 
 		client.setPermissions([4,5,6,7,8,9]);
-		obj = client.prepareObject(cloneDeep(mockProxy), instance.permissionTree);
+		obj = client.prepareObject(instance, '');
 		expect(obj).toEqual({ allCombinations: { obj1: { obj2: { arr1: [0,1,2, [0, [{}], 2]] } } } });
 
 		client.setPermissions([4,5,6,7,8,9,10]);
-		obj = client.prepareObject(cloneDeep(mockProxy), instance.permissionTree);
+		obj = client.prepareObject(instance, '');
 		expect(obj).toEqual({ allCombinations: { obj1: { obj2: { arr1: [0,1,2, [0, [{ obj3: {} }], 2]] } } } });
 
 		client.setPermissions([4,5,6,7,8,9,10,11]);
-		obj = client.prepareObject(cloneDeep(mockProxy), instance.permissionTree);
+		obj = client.prepareObject(instance, '');
 		expect(obj).toEqual({ allCombinations: { obj1: { obj2: { arr1: [0,1,2, [0, [{ obj3: { arr2: [{a:'a',c:'c'}, {a:'x',c:'z'}, {a:'1'}] } }], 2]] } } } });
 
 		client.setPermissions([4,5,6,7,8,9,10,11,12]);
-		obj = client.prepareObject(cloneDeep(mockProxy), instance.permissionTree);
+		obj = client.prepareObject(instance, '');
 		expect(obj).toEqual({ allCombinations: { obj1: { obj2: { arr1: [0,1,2, [0, [{ obj3: { arr2: [{a:'a',b:'b',c:'c'}, {a:'x',b:'y',c:'z'}, {a:'1',b:'2'}] } }], 2]] } } } });
 
 		client.setPermissions([4,5,6,7,8,9,10,11,12,13]);
-		obj = client.prepareObject(cloneDeep(mockProxy), instance.permissionTree);
+		obj = client.prepareObject(instance, '');
 		expect(obj).toEqual({ allCombinations: { obj1: { obj2: { arr1: [0,1,2, [0, [{ obj3: { arr2: [{a:'a',b:'b',c:'c'}, {a:'x',b:'y',c:'z'}, {a:'1',b:'2',c:'3'}] } }], 2]] } } } });
 
 		client.setPermissions([5,6,7,8,9,10,11,12,13]); //no 4
-		obj = client.prepareObject(cloneDeep(mockProxy), instance.permissionTree);
+		obj = client.prepareObject(instance, '');
 		expect(obj).toEqual({ allCombinations: {} });
 
 		client.setPermissions([4,5,6, 9]);
-		obj = client.prepareObject(cloneDeep(mockProxy), instance.permissionTree);
+		obj = client.prepareObject(instance, '');
 		expect(obj).toEqual({ allCombinations: { obj1: { obj2: { arr1: [0,1,2, [undefined, [{}], undefined] ] } } } });
 
 		client.setPermissions([4,5,6, 9, 13]);
-		obj = client.prepareObject(cloneDeep(mockProxy), instance.permissionTree);
+		obj = client.prepareObject(instance, '');
 		expect(obj).toEqual({ allCombinations: { obj1: { obj2: { arr1: [0,1,2, [undefined, [{}], undefined] ] } } } });
 
 		client.setPermissions([4,5,6, 9,10,11, 13]);
-		obj = client.prepareObject(cloneDeep(mockProxy), instance.permissionTree);
+		obj = client.prepareObject(instance, '');
 		expect(obj).toEqual({ allCombinations: { obj1: { obj2: { arr1: [0,1,2, [undefined, [{ obj3: { arr2: [{a:'a',c:'c'}, {a:'x',c:'z'}, {a:'1',c:'3'}] } }], undefined] ] } } } });
 
 		done();

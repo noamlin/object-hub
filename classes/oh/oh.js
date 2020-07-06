@@ -114,7 +114,7 @@ module.exports = exports = class OH {
 	 * evaluate path according to the OH object or according to another specific object
 	 * @param {Object|Proxy} obj
 	 * @param {String} path
-	 * @returns {Object} - returns {obj, property}
+	 * @returns {Object} - returns {object, property, value}
 	 */
 	static evalPath(obj, path) {
 		return evalPath(obj, path);
