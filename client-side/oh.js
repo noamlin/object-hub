@@ -119,7 +119,7 @@ var OH = (function() {
 						console.error('couldn\'t loop completely over path', change);
 					}
 
-					if(typeof change.reason === 'string') {
+					if(typeof change.reason === 'string' && change.reason.length >= 1) {
 						console.warn(change.path, change.reason);
 					}
 				}

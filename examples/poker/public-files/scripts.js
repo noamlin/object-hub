@@ -1,7 +1,11 @@
 "use strict";
 
-var poker, name, myID, me;
-var playersElm;
+var poker, name, myID, me, playersElm;
+
+function isNumeric(variable) {
+	if(typeof variable === 'string' && variable === '') return false;
+	else return !isNaN(variable);
+}
 
 window.addEventListener('DOMContentLoaded', (event) => {
 	let loginBtn = document.querySelector('div.login > button');
@@ -13,61 +17,119 @@ window.addEventListener('DOMContentLoaded', (event) => {
 		} else {
 			let pokerInstance = new OH('poker', {nickname: name}, (obj) => {
 				poker = obj;
-				myID = poker.id;
+				myID = pokerInstance.id;
 				beginGame();
 			});
 		}
 	});
+
+	let resetBtn = document.querySelector('#reset-game');
+	resetBtn.addEventListener('click', (event) => {
+		poker.status = 'reset';
+		setTimeout(() => {
+			me.chips += 123;
+		}, 200);
+	});
+
+	let disconnectBtn = document.querySelector('#disconnect');
+	disconnectBtn.addEventListener('click', (event) => {
+		location.reload();
+	});
 });
 
 function beginGame() {
-	for(let i=0; i < poker.players.length; i++) {
-		if(poker.players[i] && poker.players[i].id === myID) {
-			me = poker.players[i];
-			break;
-		}
-	}
 	document.querySelector('div.login').style.display = 'none';
 	document.querySelector('div.game').style.display = 'block';
-	updateStatus();
+	updateMe();
+	UI.updateStatus();
 	playersElm = document.querySelector('div.game div.players');
-	updateActivePlayer();
+	UI.updateCurrentPlayer();
 	updatePlayersList();
-	if(me.personal.auth === 'admin') {
-		document.querySelector('div.game div.admin-panel').style.display = 'block';
-	}
+
+	poker.players.on('change', (changes) => {
+		for(let change of changes) {
+			let segments = Proxserve.splitPath(change.path);
+			if(segments.length === 1 && isNumeric(segments[0])) { //path leads to one property which is a direct cell of the array
+				updatePlayersList();
+			}
+		}
+	});
 
 	poker.on('change', (changes) => {
-		switch(changes[0].path) {
-			case '.status': updateStatus(); break;
-			case '.activePlayer': updateActivePlayer(); break;
-		}
-		if(changes[0].path.indexOf('.players') >= 0) {
-			updatePlayersList();
+		for(let change of changes) {
+			switch(change.path) {
+				case '.status': UI.updateStatus(); break;
+				case '.currentPlayer': UI.updateCurrentPlayer(); break;
+			}
 		}
 	});
 }
 
-function updateStatus() {
-	document.querySelector('div.game span.game-status').textContent = poker.status;
+var UI = {
+	updateStatus: function() {
+		document.querySelector('div.game span.game-status').textContent = (typeof poker.status !== undefined) ? poker.status : '';
+	},
+	updateCurrentPlayer: function() {
+		let name = '';
+		if(poker.players[poker.currentPlayer]) name = poker.players[poker.currentPlayer].name;
+		document.querySelector('div.game span.now-playing').textContent = name;
+	},
+	updatePlayerInfo: function(span, player, order) {
+		span.textContent = `${order}) ${player.name} [chips: ${player.chips}]`;
+	},
+	updateMyCards() {
+		let cardsInfo = '';
+		if(Array.isArray(me.personal.cards)) {
+			for(let card of me.personal.cards) {
+				cardsInfo += `${card.number} ${card.type} `;
+			}
+		}
+		document.querySelector('div.game span.my-cards').textContent = cardsInfo;
+	}
+};
+
+//create 'me' or update its reference, so following code won't throw
+function updateMe() {
+	for(let player of poker.players) {
+		if(player.id === myID) {
+			me = player;
+			UI.updateMyCards();
+
+			me.removeAllListeners();
+			me.on('change', (changes) => {
+				for(let change of changes) {
+					if(change.path === '.personal.cards') {
+						UI.updateMyCards();
+					}
+				}
+			});
+			break;
+		}
+	}
 }
-function updateActivePlayer() {
-	document.querySelector('div.game span.now-playing').textContent = poker.activePlayer;
-}
+
 function updatePlayersList() {
+	updateMe();
+
 	while(playersElm.firstChild){
 		playersElm.removeChild(playersElm.firstChild);
 	}
 
 	for(let i=0; i < poker.players.length; i++) {
-		if(!poker.players[i]) continue;
+		let player = poker.players[i];
+		let order = i+1;
 
 		let span = document.createElement('span');
-		span.textContent = `player #${i+1} - name: ${poker.players[i].name} - chips: ${poker.players[i].chips}`;
-		if(poker.players[i].id === me.id) {
+		UI.updatePlayerInfo(span, player, order);
+		if(player.id === me.id) {
 			span.style.color = '#70B0FF';
 		}
 		playersElm.appendChild(span);
 		playersElm.appendChild(document.createElement('br'));
+
+		player.removeAllListeners();
+		player.on('change', (changes) => {
+			UI.updatePlayerInfo(span, player, order);
+		});
 	}
 }

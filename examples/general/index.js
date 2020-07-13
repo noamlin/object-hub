@@ -104,33 +104,36 @@ demoInstance.on('disconnection', function(client, reason) {
 	console.log(`deleting client ${client.id} from list. reason: ${reason}`);
 	delete demo.dynamic[client.id];
 });
-demoInstance.on('client-change', function(changes, client, commitClientChanges) {
-	let {object, property} = OH.evalPath(demo, changes[0].path);
+demoInstance.on('client-change', function(changes, client, commitChange) {
+	for(let change of changes) {
+		let {object, property} = OH.evalPath(demo, change.path);
 
-	if(object === demo && ['foo','bar'].includes(property)) {
-		//switch between 'foo' and 'bar', and also print who commited the change
-		commitClientChanges(false);
-
-		if(property === 'foo') {
-			property = 'bar';
+		if(object === demo && ['foo','bar'].includes(property)) {
+			//switch between 'foo' and 'bar', and also print who commited the change
+			commitChange(change, false);
+	
+			if(property === 'foo') {
+				property = 'bar';
+			}
+			else {
+				property = 'foo';
+			}
+			
+			switch(change.type) {
+				case 'create':
+				case 'update':
+					object[property] = change.value;
+					break;
+				case 'delete':
+					delete object[property];
+					break;
+			}
+	
+			demo.last_changer = demo.dynamic[client.id].name;
 		}
 		else {
-			property = 'foo';
+			commitChange(change);
 		}
-		
-		switch(changes[0].type) {
-			case 'create':
-			case 'update':
-				object[property] = changes[0].value;
-				break;
-			case 'delete':
-				delete object[property];
-				break;
-		}
-
-		demo.last_changer = demo.dynamic[client.id].name;
-	} else {
-		commitClientChanges();
 	}
 });
 

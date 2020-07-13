@@ -19,6 +19,6 @@ div.game {
   font-weight: bold;
   text-shadow: 1px 1px 1px black;
 }
-div.game div.admin-panel {
-  display: none;
+div.game #disconnect {
+  float: right;
 }

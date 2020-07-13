@@ -214,63 +214,102 @@ function onClientObjectChange(client, changes) {
 			}
 		}
 
-		let disapproveChanges = (changesList, reason) => {
+		let disapproveChanges = (changesList, reason='') => {
+			if(changesList.length === 0) return;
+
+			let reversedChanges = [];
 			for(let change of changesList) {
 				switch(change.type) {
 					case 'create':
-						change.oldValue = change.value;
-						change.value = undefined;
-						change.type = 'delete';
+						reversedChanges.push({
+							path: change.path,
+							oldValue: change.value,
+							value: undefined,
+							type: 'delete'
+						});
 						break;
 					case 'update':
-						change.oldValue = change.value;
-						change.value = client.prepareObject(this, change.path);
+						reversedChanges.push({
+							path: change.path,
+							oldValue: change.value,
+							value: client.prepareObject(this, change.path),
+							type: 'update'
+						});
 						break;
 					case 'delete':
-						change.oldValue = undefined;
-						change.value = client.prepareObject(this, change.path);
-						change.type = 'create';
+						reversedChanges.push({
+							path: change.path,
+							oldValue: undefined,
+							value: client.prepareObject(this, change.path),
+							type: 'create'
+						});
 						break;
 				}
-				change.reason = reason;
+				if(reason.length > 0) {
+					reversedChanges[reversedChanges.length - 1].reason = reason;
+				}
 			}
-			this.io.to(client.socket.id).emit('change', changesList); //emit previous values to the client
+			this.io.to(client.socket.id).emit('change', reversedChanges); //emit previous values to the client
 		}
 		
-		if(notPermittedChanges.length > 0) {
-			disapproveChanges(notPermittedChanges, 'Denied: no writing permission'); //reverse not-permitted changes
-		}
+		
+		disapproveChanges(notPermittedChanges, 'Denied: no writing permission'); //reverse not-permitted changes
 
 		if(permittedChanges.length > 0) {
-			let commitChanges = (approve=true) => {
-				if(approve) { //server is permitting
-					for(let change of permittedChanges) {
-						try {
-							let {object, property} = evalPath(proxy, change.path);
-							switch(change.type) {
-								case 'create':
-								case 'update':
-									object[ property ] = change.value;
-									break;
-								case 'delete':
-									delete object[ property ];
-									break;
-							}
-						} catch(error) {
-							console.error(error);
-						}
-					}
+			let approved = [];
+			let disapproved = [];
+
+			/**
+			 * 
+			 * @param {Change} change - a reference to a change from 'permittedChanges'
+			 * @param {Boolean} [allow] - allow or deny
+			 * @param {String} [reason] - reason is denied
+			 */
+			let commitChange = (change, allow=true, reason='Denied: overwritten by server') => {
+				if(allow) {
+					approved.push(change);
+				} else {
+					disapproved.push(change);
+					if(reason.length > 0) change.reason = reason;
 				}
-				else { //server denies making changes
-					disapproveChanges(permittedChanges, 'Denied: overwritten by server');
+
+				if(approved.length + disapproved.length === permittedChanges.length) { //committed all
+					applyChanges();
+				}
+			}
+			/**
+			 * 
+			 * @param {Boolean} [approve] - approve changes and alter the object for all or send a rejection (old values) to the client
+			 * @param {String} [reason] - send a reason of rejection to the client
+			 */
+			let applyChanges = () => {
+				//first of all disapprove so client's values will be reversed and synced with all other clients
+				disapproveChanges(disapproved, '');
+
+				for(let change of approved) {
+					try {
+						let {object, property} = evalPath(proxy, change.path);
+						switch(change.type) {
+							case 'create':
+							case 'update':
+								object[ property ] = change.value;
+								break;
+							case 'delete':
+								delete object[ property ];
+								break;
+						}
+					} catch(error) {
+						console.error(error);
+					}
 				}
 			}
 
 			if(this.listenerCount('client-change') >= 1) {
-				this.emit('client-change', cloneDeep(permittedChanges), client, commitChanges); //hook to catch client's change before emitting to all clients
+				this.emit('client-change', permittedChanges, client, commitChange); //hook to catch client's change before emitting to all clients
 			}
 			else {
-				commitChanges();
+				approved = permittedChanges;
+				applyChanges();
 			}
 		}
 	} else {
