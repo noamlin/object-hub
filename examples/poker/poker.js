@@ -50,10 +50,6 @@ pokerInstance.on('connection', function(client, clientData, init) {
 	}
 
 	let id = client.id;
-	let playerIndex = poker.players.length; //future to be
-
-	this.setPermissions(`poker.players[${playerIndex}]`, 0, id); //only client himself can write to this
-	this.setPermissions(`poker.players[${playerIndex}].personal`, id, id); //only client himself can read & write to this
 
 	poker.players.push({
 		id: id,
@@ -63,6 +59,9 @@ pokerInstance.on('connection', function(client, clientData, init) {
 			cards: []
 		}
 	});
+
+	//important to update permissions immediately, before Proxserve's loop ends (10ms) and send the data to all clients
+	updatePlayerPermissions(poker.players.length - 1);
 
 	if(this.clients.size === 0 && this.pendingClients.size === 1) {
 		resetGame();
@@ -86,6 +85,15 @@ pokerInstance.on('disconnection', function(client, reason) {
 	}
 });
 
+poker.players.on('change', (changes) => {
+	for(let change of changes) {
+		let {object, property} = OH.evalPath(poker.players, change.path);
+		if(object === poker.players) {
+			//after evaluation of the path we stayed on the same object so the path was to a direct property (index) of this array
+			updatePlayerPermissions(property);
+		}
+	}
+});
 
 pokerInstance.on('client-change', function(changes, client, commitChange) {
 	for(let change of changes) {
@@ -97,6 +105,15 @@ pokerInstance.on('client-change', function(changes, client, commitChange) {
 		}
 	}
 });
+
+function updatePlayerPermissions(index) {
+	if(typeof poker.players[index] === 'object') { //the player wasn't deleted
+		//only client himself can write:
+		pokerInstance.setPermissions(`.players[${index}]`, 0, poker.players[index].id);
+		//only client himself can read & write:
+		pokerInstance.setPermissions(`.players[${index}].personal`, poker.players[index].id, poker.players[index].id);
+	}
+}
 
 function resetGame() {
 	poker.table = cloneDeep(pokerDefaults.table);
