@@ -26,9 +26,6 @@ window.addEventListener('DOMContentLoaded', (event) => {
 	let resetBtn = document.querySelector('#reset-game');
 	resetBtn.addEventListener('click', (event) => {
 		poker.status = 'reset';
-		setTimeout(() => {
-			me.chips += 123;
-		}, 200);
 	});
 
 	let disconnectBtn = document.querySelector('#disconnect');
@@ -90,22 +87,29 @@ var UI = {
 
 //create 'me' or update its reference, so following code won't throw
 function updateMe() {
-	for(let player of poker.players) {
+	for(let i = 0; i < poker.players.length; i++) {
+		let player = poker.players[i];
 		if(player.id === myID) {
 			me = player;
 			UI.updateMyCards();
 
-			me.removeAllListeners();
-			me.on('change', (changes) => {
+			/*poker.players[i].removeAllListeners();
+			poker.players[i].on('change', (changes) => {
 				for(let change of changes) {
 					if(change.path === '.personal.cards') {
 						UI.updateMyCards();
 					}
 				}
-			});
+			});*/
 			break;
 		}
 	}
+
+	let me2 = poker.players;
+	me2.removeAllListeners();
+	me2.on('change', (changes) => {
+		console.log(changes);
+	});
 }
 
 function updatePlayersList() {
