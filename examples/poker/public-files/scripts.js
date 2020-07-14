@@ -37,7 +37,6 @@ window.addEventListener('DOMContentLoaded', (event) => {
 function beginGame() {
 	document.querySelector('div.login').style.display = 'none';
 	document.querySelector('div.game').style.display = 'block';
-	updateMe();
 	UI.updateStatus();
 	playersElm = document.querySelector('div.game div.players');
 	UI.updateCurrentPlayer();
@@ -71,8 +70,8 @@ var UI = {
 		if(poker.players[poker.currentPlayer]) name = poker.players[poker.currentPlayer].name;
 		document.querySelector('div.game span.now-playing').textContent = name;
 	},
-	updatePlayerInfo: function(span, player, order) {
-		span.textContent = `${order}) ${player.name} [chips: ${player.chips}]`;
+	updatePlayerInfo: function(span, player, place) {
+		span.textContent = `${place}) ${player.name} [chips: ${player.chips}]`;
 	},
 	updateMyCards() {
 		let cardsInfo = '';
@@ -92,24 +91,9 @@ function updateMe() {
 		if(player.id === myID) {
 			me = player;
 			UI.updateMyCards();
-
-			/*poker.players[i].removeAllListeners();
-			poker.players[i].on('change', (changes) => {
-				for(let change of changes) {
-					if(change.path === '.personal.cards') {
-						UI.updateMyCards();
-					}
-				}
-			});*/
 			break;
 		}
 	}
-
-	let me2 = poker.players;
-	me2.removeAllListeners();
-	me2.on('change', (changes) => {
-		console.log(changes);
-	});
 }
 
 function updatePlayersList() {
@@ -121,19 +105,30 @@ function updatePlayersList() {
 
 	for(let i=0; i < poker.players.length; i++) {
 		let player = poker.players[i];
-		let order = i+1;
+		player.removeAllListeners(); //removes all listeners of 'player' which might also be listeners of 'me'
+		let place = i+1;
 
 		let span = document.createElement('span');
-		UI.updatePlayerInfo(span, player, order);
-		if(player.id === me.id) {
+		UI.updatePlayerInfo(span, player, place);
+
+		if(player.id === myID) { //found 'me' so do some stuff related only to me
+			me = player;
+			UI.updateMyCards();
 			span.style.color = '#70B0FF';
+			me.on('change', (changes) => {
+				for(let change of changes) {
+					if(change.path === '.personal.cards') {
+						UI.updateMyCards();
+					}
+				}
+			});
 		}
+		
 		playersElm.appendChild(span);
 		playersElm.appendChild(document.createElement('br'));
 
-		player.removeAllListeners();
 		player.on('change', (changes) => {
-			UI.updatePlayerInfo(span, player, order);
+			UI.updatePlayerInfo(span, player, place);
 		});
 	}
 }
