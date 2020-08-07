@@ -46,7 +46,7 @@ class OHinstance extends EventEmitter {
 	 */
 	destroy(cb) {
 		let proxy = ohInstances.getProxy(this);
-		let originalObj = proxy.getOriginalTarget();
+		let originalObj = proxy.$getOriginalTarget();
 		setImmediate(() => {
 			//first disconnect all clients and trigger all 'disconnection' events which might still be using the proxy object
 			let socketsKeys = Object.keys(this.io.connected);

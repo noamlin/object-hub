@@ -7,6 +7,7 @@ const express = require('express');
 const app = express();
 const OH = require(`${baseDir}/index.js`);
 const { cloneDeep } = require('lodash');
+const { arraySort } = require('../../utils/sort.js');
 
 const server = http.createServer(app);
 server.listen(1337);
@@ -17,29 +18,30 @@ app.get('/oh.js', (req, res) => { res.sendFile(`${baseDir}/client-side/oh.js`); 
 app.get('/proxserve.js', (req, res) => { res.sendFile(`${baseDir}/node_modules/proxserve/index.js`); });
 app.use('/public-files', express.static(`${baseDir}/examples/poker/public-files`));
 
-
-
-var cardTypes = ['clubs','diamonds','hearts','spades'];
-var cardNumbers = ['ace',2,3,4,5,6,7,8,9,10,'jack','queen','king'];
 var pokerDefaults = {
 	players: [],
 	cards: { available: [], dealt: [] },
 	table: {
-		flop: [0, 0, 0],
-		turn: 0,
-		river: 0
+		flop: [null, null, null],
+		turn: null,
+		river: null,
+		chips: 0
 	}
 };
-for(let type of cardTypes) {
-	for(let num of cardNumbers) {
-		pokerDefaults.cards.available.push({ type: type, number: num });
+for(let suit of ['clubs','diamonds','hearts','spades']) {
+	for(let rank of [2,3,4,5,6,7,8,9,10,11,12,13,14]) {
+		pokerDefaults.cards.available.push({ suit: suit, rank: rank });
 	}
 }
+
+var pokerStatuses = ['reset', 'waiting for players', 'pre flop', 'flop', 'turn', 'river', 'finish game'];
+var playerStatuses = ['waiting to play', 'now playing', 'played', 'fold'];
 
 var poker = new OH('poker', server, cloneDeep(pokerDefaults));
 var pokerInstance = OH.getInstance(poker);
 
 pokerInstance.setPermissions('cards', 'no_one', 'no_one');
+resetGame();
 
 pokerInstance.on('connection', function(client, clientData, init) {
 	client.nickname = clientData.nickname;
@@ -55,6 +57,7 @@ pokerInstance.on('connection', function(client, clientData, init) {
 		id: id,
 		name: clientData.nickname,
 		chips: 1000,
+		status: playerStatuses[3],
 		personal: {
 			cards: []
 		}
@@ -80,16 +83,17 @@ pokerInstance.on('disconnection', function(client, reason) {
 			break;
 		}
 	}
-	if(this.clients.size === 0) {
+	if(this.clients.size < 2) {
 		resetGame();
 	}
 });
 
-poker.players.on('change', (changes) => {
+poker.players.on('change', function(changes) {
 	for(let change of changes) {
 		let {object, property} = OH.evalPath(poker.players, change.path);
-		if(object === poker.players) {
-			//after evaluation of the path we stayed on the same object so the path was to a direct property (index) of this array
+		if(object === this) {
+			//after evaluation of the path we stayed on the same object so the path was to a direct property (index) of this array.
+			//meaning a new player was added or one was deleted
 			updatePlayerPermissions(property);
 		}
 	}
@@ -97,12 +101,29 @@ poker.players.on('change', (changes) => {
 
 pokerInstance.on('client-change', function(changes, client, commitChange) {
 	for(let change of changes) {
-		if(change.path === '.status' && change.value === 'reset') {
-			commitChange(change, false, ''); //disallow with no reason, because status will be changed by resetGame()
-			resetGame();
-		} else {
-			commitChange(change); //allow change
+		let allowChange = true;
+		if(change.path === '.status') {
+			if(change.value === pokerStatuses[0]) { //reset
+				allowChange = false;
+				resetGame(); //status will be changed by resetGame()
+			} else if(change.value === pokerStatuses[3]) { //flop
+				poker.table.flop = fetchCards(3);
+			} else if(change.value === pokerStatuses[4]) { //turn
+				poker.table.turn = fetchCards(1)[0];
+			} else if(change.value === pokerStatuses[5]) { //river
+				poker.table.river = fetchCards(1)[0];
+			} else if(change.value === pokerStatuses[6]) { //finish game
+				allowChange = false;
+				let winners = [];
+				for(let player of poker.players) {
+					let hand = calculateBestHand([...player.personal.cards, ...poker.table.flop, poker.table.turn, poker.table.river]);
+				}
+				resetGame();
+			}
 		}
+
+		if(allowChange) commitChange(change); //allow change
+		else commitChange(change, false, ''); //disallow with no reason 
 	}
 });
 
@@ -121,14 +142,17 @@ function resetGame() {
 
 	if(poker.players.length > 1) {
 		dealCards();
-		poker.status = 'pre flop';
-		poker.dealer = Math.floor(Math.random() * poker.players.length);
-		poker.currentPlayer = (poker.dealer + 1 === poker.players.length) ? 0 : poker.dealer + 1;
+		poker.status = pokerStatuses[2]; //pre flop
+
+		poker.dealer++; //will force a change no matter what
+		if(poker.dealer >= poker.players.length) poker.dealer = 0;
+		poker.currentPlayer = poker.dealer + 1; //will force a change no matter what
+		if(poker.currentPlayer >= poker.players.length) poker.currentPlayer = 0;
 	}
 	else {
-		poker.status = 'waiting for players';
-		poker.dealer = 0;
-		poker.currentPlayer = 0;
+		poker.status = pokerStatuses[1]; //waiting for players
+		poker.dealer = -1;
+		poker.currentPlayer = -1;
 	}
 }
 
@@ -146,5 +170,14 @@ function fetchCards(qty) {
 function dealCards() {
 	for(let player of poker.players) {
 		player.personal.cards = fetchCards(2);
+		player.status = playerStatuses[0];
+	}
+}
+
+function calculateBestHand(cards) {
+	arraySort(cards, 'rank');
+	console.log(JSON.stringify(cards));
+	for(let card of cards) {
+		//
 	}
 }

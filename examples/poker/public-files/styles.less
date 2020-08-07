@@ -13,13 +13,52 @@ body {
 	padding: 20px;
 }
 
+button {
+	padding: 2px 8px;
+	cursor: pointer;
+}
+
 div.game {
 	display: none;
 	color: white;
 	font-weight: bold;
 	text-shadow: 1px 1px 1px black;
 
-	#disconnect {
-		float: right;
+	& > div {
+		margin: 15px 0;
+	}
+
+	#control-buttons {
+		.disconnect {
+			float: right;
+		}
+	}
+
+	#bet-bar {
+		display: none;
+		
+		input {
+			width: 55px;
+		}
+	}
+
+	span.card {
+		padding: 4px;
+		margin-left: 10px;
+		color: black;
+		font-size: 30px;
+		text-shadow: none;
+		background-color: white;
+		border-radius: 8px;
+		box-shadow: 3px 3px 2px rgba(0,0,0,0.7);
+
+		img {
+			height: 22px;
+		}
+	}
+	#table span.card {
+		display: inline-block;
+		margin-top: 4px;
+		margin-bottom: 4px;
 	}
 }

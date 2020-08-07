@@ -138,9 +138,15 @@ var OH = (function() {
 
 				for(let j = clientChanges.length-1; j >= 0; j--) {
 					let change = clientChanges[j];
+					let value;
+					try {
+						value = change.value.$getOriginalTarget(); //in case it was proxied
+					} catch(err) {
+						value = change.value; //just a primitive
+					}
 					
 					if(change.type === serverChange.type && change.path === serverChange.path //probably the same change
-						&& (change.type === 'delete' || change.value === serverChange.value)) { //both are delete or both change to the same value
+						&& (change.type === 'delete' || value === serverChange.value)) { //both are delete or both change to the same value
 							clientChanges.splice(j, 1); //no need to send this change to the server
 							this.serverUpdatesQueue[i][1] = 0; //will get it deleted
 							break;

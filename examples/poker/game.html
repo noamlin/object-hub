@@ -20,16 +20,16 @@
 	</div>
 
 	<div class="game">
-		<button id="reset-game">Reset game</button> &nbsp; <button id="disconnect">Disconnect</button>
-		<br><br>
-		My cards: <span class="my-cards"></span>
-		<br><br>
-		Game status: <span class="game-status"></span>
-		<br><br>
-		Now playing: <span class="now-playing"></span>
-		<br><br>
-		TABLE: flop: <span class="flop"></span>, turn: <span class="turn"></span>, river: <span class="river"></span>
-		<br><br>
+		<div id="control-buttons"><button class="reset-game">Reset game</button><button class="disconnect">Disconnect</button></div>
+		<div id="my-cards">My cards: <span></span></div>
+		<div id="bet-bar"><input type="number"> make <button class="bet">Bet</button> or <button class="fold">Fold</button></div>
+		<div id="game-status">Game status: <span></span></div>
+		<div id="table">
+			TABLE: <span class="chips"></span> chips<br>
+			flop: <span class="flop"></span><br>
+			turn: <span class="turn"></span><br>
+			river: <span class="river"></span>
+		</div>
 		<div class="players"></div>
 	</div>
 </body>

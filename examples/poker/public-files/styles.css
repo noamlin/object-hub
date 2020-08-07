@@ -13,12 +13,43 @@ body {
   background-image: url('images/background-green-table.jpg');
   padding: 20px;
 }
+button {
+  padding: 2px 8px;
+  cursor: pointer;
+}
 div.game {
   display: none;
   color: white;
   font-weight: bold;
   text-shadow: 1px 1px 1px black;
 }
-div.game #disconnect {
+div.game > div {
+  margin: 15px 0;
+}
+div.game #control-buttons .disconnect {
   float: right;
+}
+div.game #bet-bar {
+  display: none;
+}
+div.game #bet-bar input {
+  width: 55px;
+}
+div.game span.card {
+  padding: 4px;
+  margin-left: 10px;
+  color: black;
+  font-size: 30px;
+  text-shadow: none;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 3px 3px 2px rgba(0, 0, 0, 0.7);
+}
+div.game span.card img {
+  height: 22px;
+}
+div.game #table span.card {
+  display: inline-block;
+  margin-top: 4px;
+  margin-bottom: 4px;
 }

@@ -7,7 +7,7 @@ const { infrastructure, MockSocket, mockIO } = require('./mocks.js');
 const { cloneDeep } = require('lodash');
 
 test('splitPath method', () => {
-	expect(splitPath('')).toEqual(['']);
+	expect(splitPath('')).toEqual([]);
 	expect(splitPath('ab.cd.ef')).toEqual(['ab','cd','ef']);
 	expect(splitPath('ab.cd[1].ef[2][3]')).toEqual(['ab','cd','1','ef','2','3']);
 });
