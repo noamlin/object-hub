@@ -251,42 +251,12 @@ function onClientObjectChange(client, changes) {
 			}
 			this.io.to(client.socket.id).emit('change', reversedChanges); //emit previous values to the client
 		}
-		
-		
+
 		disapproveChanges(notPermittedChanges, 'Denied: no writing permission'); //reverse not-permitted changes
 
 		if(permittedChanges.length > 0) {
-			let approved = [];
-			let disapproved = [];
-
-			/**
-			 * 
-			 * @param {Change} change - a reference to a change from 'permittedChanges'
-			 * @param {Boolean} [allow] - allow or deny
-			 * @param {String} [reason] - reason is denied
-			 */
-			let commitChange = (change, allow=true, reason='Denied: overwritten by server') => {
-				if(allow) {
-					approved.push(change);
-				} else {
-					disapproved.push(change);
-					if(reason.length > 0) change.reason = reason;
-				}
-
-				if(approved.length + disapproved.length === permittedChanges.length) { //committed all
-					applyChanges();
-				}
-			}
-			/**
-			 * 
-			 * @param {Boolean} [approve] - approve changes and alter the object for all or send a rejection (old values) to the client
-			 * @param {String} [reason] - send a reason of rejection to the client
-			 */
-			let applyChanges = () => {
-				//first of all disapprove so client's values will be reversed and synced with all other clients
-				disapproveChanges(disapproved, '');
-
-				for(let change of approved) {
+			let applyChanges = (changesList) => {
+				for(let change of changesList) {
 					try {
 						let {object, property} = evalPath(proxy, change.path);
 						switch(change.type) {
@@ -304,12 +274,26 @@ function onClientObjectChange(client, changes) {
 				}
 			}
 
+			/**
+			 * a function emitted with the 'client-change' event so the user can commit (or not) a change.
+			 * this changes are committed immediately so they will get in the right place in proxserve's cycle
+			 * @param {Change} change - a reference to a change from 'permittedChanges'
+			 * @param {Boolean} [allow] - allow or deny
+			 * @param {String} [reason] - reason why is denied
+			 */
+			let commitChange = (change, allow=true, reason='Denied: overwritten by server') => {
+				if(allow) {
+					applyChanges([change]); //applies this single change iimediately
+				} else {
+					disapproveChanges([change], reason); //disapprove this single change iimediately
+				}
+			}
+
 			if(this.listenerCount('client-change') >= 1) {
 				this.emit('client-change', permittedChanges, client, commitChange); //hook to catch client's change before emitting to all clients
 			}
 			else {
-				approved = permittedChanges;
-				applyChanges();
+				applyChanges(permittedChanges);
 			}
 		}
 	} else {

@@ -1,6 +1,6 @@
 "use strict";
 
-var poker, name, myID, me, playersElm;
+var poker, name, myID, me, playersElm, consoleElm;
 var pokerStatuses = ['reset', 'waiting for players', 'pre flop', 'flop', 'turn', 'river', 'finish game'];
 var playerStatuses = ['waiting to play', 'now playing', 'played', 'fold'];
 
@@ -53,18 +53,23 @@ window.addEventListener('DOMContentLoaded', (event) => {
 function beginGame() {
 	document.querySelector('div.login').style.display = 'none';
 	document.querySelector('div.game').style.display = 'block';
-	playersElm = document.querySelector('div.game div.players');
+	playersElm = document.querySelector('div.game div#players');
+	consoleElm = document.querySelector('div.console');
 
 	UI.updateStatus();
 	poker.on('change', '.status', onChange.status);
 	poker.on('change', '.currentPlayer', onChange.currentPlayer);
-	poker.on('change', '.alert', onChange.alert);
 	poker.on('change', '.table.chips', onChange.table.chips);
 	poker.on('change', '.table.flop', onChange.table.flop);
 	poker.on('change', '.table.turn', onChange.table.turn);
 	poker.on('change', '.table.river', onChange.table.river);
+	poker.on('change', '.log', onChange.gameLog);
 	updatePlayersList();
 	poker.players.on('change', onChange.players);
+
+	for(let i=0; i < poker.log.length; i++) {
+		if(typeof poker.log[i] === 'string') UI.addLog(i, poker.log[i]);
+	}
 }
 
 function resetGame() {
@@ -158,6 +163,21 @@ var UI = {
 			riverElm.appendChild(cardElm);
 		}
 	},
+	addLog: function(index, msg) {
+		let wasScrolledToBottom = (consoleElm.offsetHeight + consoleElm.scrollTop >= consoleElm.scrollHeight -5);
+		let span = document.createElement('span');
+		span.classList.add('log-'+index);
+		span.textContent = msg;
+		span.appendChild(document.createElement('br'));
+		consoleElm.appendChild(span);
+		//keep scrolling the console to the bottom if it was at the bottom before
+		if(wasScrolledToBottom) {
+			setTimeout(() => { consoleElm.scrollTo(0, consoleElm.scrollHeight - consoleElm.offsetHeight); }, 1);
+		}
+	},
+	removeLog: function(index) {
+		consoleElm.removeChild( consoleElm.querySelector('span.log-'+index) );
+	},
 	playerElementsMap: new WeakMap()
 };
 
@@ -174,10 +194,15 @@ var onChange = {
 		turn: UI.updateTurn,
 		river: UI.updateRiver,
 	},
-	alert: function(changes) {
+	gameLog: function(changes) {
 		for(let change of changes) {
-			if(change.value) {
-				console.warn(`ALERT: ${change.value}`);
+			let index = Proxserve.splitPath(change.path);
+			if(change.type === 'create') {
+				UI.addLog(index, change.value);
+			} else if(change.type === 'delete') {
+				UI.removeLog(index);
+			} else {
+				console.warn('Unexpected log message', change);
 			}
 		}
 	},
@@ -314,12 +339,14 @@ function makeBet(amount) {
 		me.chips -= amount;
 		poker.table.chips += amount;
 		me.status = playerStatuses[2];
+		poker.log.push(`${me.name} has bet on ${amount} chip${amount > 1 ? 's' : ''}`);
 		nextPlayer();
 	}
 }
 
 function fold() {
 	me.status = playerStatuses[3];
+	poker.log.push(`${me.name} folded`);
 	nextPlayer();
 }
 
@@ -334,9 +361,9 @@ function getWinner() {
 		}
 
 		if(playingPlayers.length === 1) { //only one remaining player. all others have folded
-			let player = playingPlayers[0].player;
+			let player = playingPlayers[0];
 			player.chips += poker.table.chips;
-			poker.alert = `${player.name} won the round!`;
+			poker.log.push(`${player.name} won ${poker.table.chips} chips`);
 			resetGame();
 			return true;
 		}

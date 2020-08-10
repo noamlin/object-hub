@@ -26,7 +26,8 @@ var pokerDefaults = {
 		turn: null,
 		river: null,
 		chips: 0
-	}
+	},
+	log: []
 };
 for(let suit of ['clubs','diamonds','hearts','spades']) {
 	for(let rank of [2,3,4,5,6,7,8,9,10,11,12,13,14]) {
@@ -36,6 +37,7 @@ for(let suit of ['clubs','diamonds','hearts','spades']) {
 
 var pokerStatuses = ['reset', 'waiting for players', 'pre flop', 'flop', 'turn', 'river', 'finish game'];
 var playerStatuses = ['waiting to play', 'now playing', 'played', 'fold'];
+var hands = ['High card','Pair','Two Pairs','Three of a kind','Straight','Flush','Full house','Four of a kind','Straight flush','Royal flush'];
 
 var poker = new OH('poker', server, cloneDeep(pokerDefaults));
 var pokerInstance = OH.getInstance(poker);
@@ -46,6 +48,7 @@ resetGame();
 pokerInstance.on('connection', function(client, clientData, init) {
 	client.nickname = clientData.nickname;
 	console.log(`Client ${client.nickname} connected`);
+	gameLog(`Player ${client.nickname} connected`);
 
 	if(this.clients.size > 8) {
 		return; //don't connect more than 8 players
@@ -74,6 +77,7 @@ pokerInstance.on('connection', function(client, clientData, init) {
 });
 pokerInstance.on('disconnection', function(client, reason) {
 	console.log(`Client ${client.nickname} disconnected`);
+	gameLog(`Player ${client.nickname} disconnected`);
 
 	let id = client.id;
 	for(let i = poker.players.length-1; i >= 0; i--) {
@@ -108,22 +112,59 @@ pokerInstance.on('client-change', function(changes, client, commitChange) {
 				resetGame(); //status will be changed by resetGame()
 			} else if(change.value === pokerStatuses[3]) { //flop
 				poker.table.flop = fetchCards(3);
+				gameLog(`Advancing to flop`);
 			} else if(change.value === pokerStatuses[4]) { //turn
 				poker.table.turn = fetchCards(1)[0];
+				gameLog(`Advancing to turn`);
 			} else if(change.value === pokerStatuses[5]) { //river
 				poker.table.river = fetchCards(1)[0];
+				gameLog(`Advancing to river`);
 			} else if(change.value === pokerStatuses[6]) { //finish game
 				allowChange = false;
 				let winners = [];
 				for(let player of poker.players) {
+					if(player.status === playerStatuses[3]) { //fold
+						continue;
+					}
+
 					let hand = calculateBestHand([...player.personal.cards, ...poker.table.flop, poker.table.turn, poker.table.river]);
+					if(winners.length === 0 || winners[0].hand === hand) winners.push({'player': player, 'hand': hand}); //add to winners list
+					else if(winners[0].hand < hand) winners = [{'player': player, 'hand': hand}]; //overwrite previous list
 				}
+
+				if(winners.length === 1) {
+					gameLog(`${winners[0].player.name} won ${poker.table.chips} chips with ${hands[ winners[0].hand ]}!`);
+					winners[0].player.chips += poker.table.chips;
+				} else if(winners.length > 1) {
+					let names = '';
+					let chipsFloor = Math.floor(poker.table.chips / winners.length);
+					let extra = poker.table.chips % winners.length;
+					for(let i=0; i < winners.length; i++) {
+						winners[i].player.chips += chipsFloor;
+						if(i === 0) {
+							names += winners[i].player.name;
+						} else if(i === winners.length-1) {
+							names += ' and ' + winners[i].player.name;
+							winners[i].player.chips += extra;
+						} else {
+							names += ', ' + winners[i].player.name;
+						}
+					}
+					gameLog(`${names} won ${chipsFloor} chips each with ${hands[ winners[0].hand ]}!`);
+				} else {
+					console.error(`A game was finished with no winners`);
+				}
+
 				resetGame();
 			}
 		}
 
 		if(allowChange) commitChange(change); //allow change
-		else commitChange(change, false, ''); //disallow with no reason 
+		else commitChange(change, false, ''); //disallow with no reason
+
+		if(change.path.substring(0,4) === '.log') {
+			trimGameLog(100);
+		}
 	}
 });
 
@@ -148,11 +189,14 @@ function resetGame() {
 		if(poker.dealer >= poker.players.length) poker.dealer = 0;
 		poker.currentPlayer = poker.dealer + 1; //will force a change no matter what
 		if(poker.currentPlayer >= poker.players.length) poker.currentPlayer = 0;
+
+		gameLog(`Starting a new round`);
 	}
 	else {
 		poker.status = pokerStatuses[1]; //waiting for players
 		poker.dealer = -1;
 		poker.currentPlayer = -1;
+		gameLog(`Resetting and waiting for players..`);
 	}
 }
 
@@ -174,10 +218,89 @@ function dealCards() {
 	}
 }
 
+function gameLog(str) {
+	poker.log.push(str);
+	trimGameLog(100);
+}
+function trimGameLog(trimTo) {
+	let oldestMessage = poker.log.length - trimTo;
+	if(oldestMessage >= 0) {
+		delete poker.log[oldestMessage];
+	}
+}
+
+/**
+ * super simple algorithm full of mistakes :D
+ * @param {Array.Object} cards 
+ */
 function calculateBestHand(cards) {
 	arraySort(cards, 'rank');
-	console.log(JSON.stringify(cards));
-	for(let card of cards) {
-		//
+
+	let consecutive = 0, suits = {'clubs':0,'diamonds':0,'hearts':0,'spades':0}, sameRank=0,
+		ofakind={'0':0,'2':0,'3':0,'4':0}, straight = false, flush = false, royalStraigt = false, suitOfFlush;
+	
+	//check for any hits
+	for(let i=0; i < cards.length; i++) {
+		let card = cards[i];
+
+		suits[ card.suit ]++;
+		if(!flush && suits[ card.suit ] === 5) {
+			flush = true;
+			suitOfFlush = card.suit;
+		}
+
+		if(i === 0) continue;
+
+		if(cards[i-1].rank === card.rank) {
+			sameRank = (sameRank === 0) ? 2 : sameRank+1;
+		} else {
+			ofakind[ sameRank ]++;
+			sameRank = 0; //reset
+
+			if(cards[i-1].rank === card.rank - 1) {
+				consecutive = (consecutive === 0) ? 2 : consecutive+1;
+				
+				if(consecutive >= 5) {
+					straight = true;
+					if(card.rank === 14) royalStraigt = true; //straight with Ace as top card
+				}
+				else if(consecutive === 4 && card.rank === 5) { //special case for a straight with Ace,2,3,4,5
+					for(let tmpCard of cards) {
+						if(tmpCard.rank === 14) straight = true;
+					}
+				}
+			} else { //difference between current card and previous card is 2 or more
+				consecutive = 0;
+			}
+		}
 	}
+
+	ofakind[ sameRank ]++; //if finished with a pair or three of a king etc.
+
+	//calculate scoring by hits
+	if(straight && flush) {
+		consecutive = 0
+		let sameSuit = 0;
+		for(let i=1; i < cards.length; i++) {
+			if(cards[i-1].rank === cards[i].rank - 1) consecutive = (consecutive === 0) ? 2 : consecutive+1;
+			else consecutive = 0;
+
+			if(cards[i-1].suit === cards[i].suit) sameSuit = (sameSuit === 0) ? 2 : sameSuit+1;
+			else sameSuit = 0;
+
+			if(consecutive >= 5 && sameSuit >= 5) { //the 5 cards with flush are the same cards with straight
+				if(royalStraigt) return 9;
+				else return 8;
+			}
+		}
+	}
+	if(ofakind['4'] > 0) return 7;
+	if(ofakind['3'] > 0 && ofakind['2'] > 0) return 6;
+	if(flush) return 5;
+	if(straight) return 4;
+	if(ofakind['3'] > 0) return 3;
+	if(ofakind['2'] > 1) return 2;
+	if(ofakind['2'] === 1) return 1;
+
+	return 0;
 }
