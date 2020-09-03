@@ -22,10 +22,7 @@ class ClientBlock extends HTMLElement {
 		linkElem.setAttribute('href', '/styles.css');
 
 		let shadow = this.attachShadow({mode: 'open'});
-		shadow.appendChild(linkElem); //child 0
-		shadow.appendChild(infoDiv);
-		shadow.appendChild(editorDiv);
-		shadow.appendChild(viewerDiv);
+		shadow.append(linkElem/*child 0*/, infoDiv, editorDiv, viewerDiv);
 	}
 };
 customElements.define('client-block', ClientBlock);
