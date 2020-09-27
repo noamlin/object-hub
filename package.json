@@ -1,6 +1,6 @@
 {
 	"name": "object-hub",
-	"version": "0.1.0",
+	"version": "1.0.0",
 	"description": "Object Hub for object synchronization between server and clients",
 	"license": "",
 	"main": "index.js",
