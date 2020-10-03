@@ -28,6 +28,7 @@ function areValidChanges(changes) {
 }
 
 /**
+ * the change object as emitted from Proxserve
  * @typedef {Object} Change - each change emitted from Proxserve
  * @property {String} path - the path from the object listening to the property that changed
  * @property {*} value - the new value that was set
@@ -40,7 +41,7 @@ function areValidChanges(changes) {
  * - spreads an array of event-changes to a more verbose array of changes by transforming the
  *   creation of objects or arrays into individual changes of each property.
  * - comparing all possible permissions
- * @param {Array.Change} changes
+ * @param {Array.<Change>} changes
  * @param {Object} oh
  * @param {Object} [digested] - already digested parts
  */

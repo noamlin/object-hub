@@ -21,11 +21,11 @@ window.addEventListener('DOMContentLoaded', (event) => {
 		if(name === '') {
 			alert('Please choose a nickname!');
 		} else {
-			let pokerInstance = new OH('poker', {nickname: name}, (obj) => {
+			let pokerInstance = new OH('poker', (obj) => {
 				poker = obj;
 				myID = pokerInstance.id;
 				beginGame();
-			});
+			}, {nickname: name});
 		}
 	});
 

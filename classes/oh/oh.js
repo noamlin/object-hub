@@ -23,7 +23,6 @@ class OHinstance extends EventEmitter {
 
 		this.domain = domain;
 		this.io = io;
-		this.delay = 9;
 		this.permissionTree = new PermissionTree();
 		this.clients = new Map();
 		this.pendingClients = new Map();
@@ -82,13 +81,19 @@ class OHinstance extends EventEmitter {
 };
 
 module.exports = exports = class OH {
-	constructor(domain, server, infrastructure = {}) {
+	constructor(domain, server, infrastructure = {}, proxserveOptions = {}) {
 		if(str2VarName(domain) !== domain) {
 			throw new Error('root path must match a valid object\'s property name');
 		}
 
+		this.proxserveOptions = {
+			delay: (proxserveOptions.delay !== undefined) ? proxserveOptions.delay : 10,
+			strict: (proxserveOptions.strict !== undefined) ? proxserveOptions.strict : true,
+			emitReference: (proxserveOptions.emitReference !== undefined) ? proxserveOptions.emitReference : false
+		};
+
 		let theInstance = new OHinstance(domain, socketio(server).of(`/oh-${domain}`));
-		let proxy = new Proxserve(infrastructure, { delay: theInstance.delay });
+		let proxy = new Proxserve(infrastructure, this.proxserveOptions);
 		ohInstances.set(proxy, theInstance);
 		proxy.on('change', handlers.onObjectChange.bind(theInstance));
 		return proxy;

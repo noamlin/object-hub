@@ -231,7 +231,7 @@ function trimGameLog(trimTo) {
 
 /**
  * super simple algorithm full of mistakes :D
- * @param {Array.Object} cards 
+ * @param {Array.<Object>} cards 
  */
 function calculateBestHand(cards) {
 	arraySort(cards, 'rank');

@@ -104,9 +104,9 @@ test('4. init method', () => {
 
 test('5. prepareObject method', (done) => {
 	let anInfrastructure = cloneDeep(mocks.infrastructure);
-	let proxy = new OH('test', mocks.server, anInfrastructure);
+	let proxy = new OH('test', mocks.server, anInfrastructure, { delay: 10 });
 	let instance = OH.getInstance(proxy);
-	let delay = instance.delay + 10;
+	let delay = 20;
 	instance.io = mocks.io;
 
 	let socket = new mocks.Socket(123);

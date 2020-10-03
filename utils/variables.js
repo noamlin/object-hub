@@ -48,7 +48,7 @@ function shuffle(arr) {
  */
 function realtypeof(variable) {
 	let rawType = Object.prototype.toString.call(variable); //[object Object], [object Array], [object Number] ...
-	return rawType.substring(8, rawType.length-1);
+	return rawType.substring(8, rawType.length - 1);
 }
 
 /**

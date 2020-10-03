@@ -194,9 +194,15 @@ function onClientObjectChange(client, changes) {
 				if(change.type !== 'delete' && typeof change.value === 'object') { //trying to create a new object
 					strictCheck = true;
 				} else { //maybe trying to overwrite/delete an existing object
-					let { value } = evalPath(proxy, change.path);
-					if(typeof value === 'object') {
-						strictCheck = true;
+					try {
+						let { value } = evalPath(proxy, change.path);
+						if(typeof value === 'object') {
+							strictCheck = true;
+						}
+					} catch(err) {
+						console.warn(`Client tried to manipulate a path that doesn't exist (or existed and deleted) on the server.
+This may have happened because client was totally out of sync`);
+						//TODO: still not sure if reaching here is an error or not
 					}
 				}
 	
@@ -235,6 +241,12 @@ function onClientObjectChange(client, changes) {
 							value: client.prepareObject(this, change.path),
 							type: 'update'
 						});
+
+						if(reversedChanges[reversedChanges.length - 1].value === undefined) {
+							//if 'client.prepareObject' failed then the client isn't permitted to view this path at all
+							reversedChanges[reversedChanges.length - 1].type = 'delete';
+						}
+
 						break;
 					case 'delete':
 						reversedChanges.push({

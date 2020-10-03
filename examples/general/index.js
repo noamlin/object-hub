@@ -106,7 +106,13 @@ demoInstance.on('disconnection', function(client, reason) {
 });
 demoInstance.on('client-change', function(changes, client, commitChange) {
 	for(let change of changes) {
-		let {object, property} = OH.evalPath(demo, change.path);
+		let object, property;
+		try {
+			({object, property} = OH.evalPath(demo, change.path));
+		} catch(err) {
+			console.warn(`Client tried to alter a path not yet existing (or deleted). this happens when client is not in sync`);
+			continue;
+		}
 
 		if(object === demo && ['foo','bar'].includes(property)) {
 			//switch between 'foo' and 'bar', and also print who commited the change
@@ -153,7 +159,7 @@ var alterations = [
 		demo.must_and_or.must_1.or_23.must_4[2].or_78 = 88;
 	},
 	() => {
-		demo.free_for_all.regular_object.not_primitive3 = ['arr',{b: ['z']}];
+		demo.free_for_all.regular_object.not_primitive3 = ['txt', {b: ['z']}];
 	},
 	() => {
 		demo.must_and_or.or_12.must_3.or_45[0].must_7 = 55;
@@ -192,7 +198,7 @@ var alterations = [
 	},
 	() => {
 		demo.or_34.or_12 = 'this requires authorization over two different levels';
-	},
+	}
 ];
 
 var i = 0;

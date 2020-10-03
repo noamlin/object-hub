@@ -41,7 +41,20 @@ window.addEventListener('DOMContentLoaded', (event) => {
 	];
 	
 	for(let i = 0; i < people.length; i++) {
-		OHs[i] = new OH('demo', people[i], (obj) => { demos[i] = obj; });
+		OHs[i] = new OH('demo', (obj) => {
+			demos[i] = obj;
+
+			//create elements that show the live data
+			let viewerDiv = clientBlock.shadowRoot.childNodes[3];
+			let pre = viewerDiv.querySelector('pre');
+
+			function updatePre(changes) {
+				pre.textContent = JSON.stringify(obj, undefined, 4);
+			}
+
+			updatePre();
+			obj.on('change', updatePre);
+		}, people[i]);
 
 		let clientBlock = document.createElement('client-block');
 		document.body.appendChild(clientBlock);
@@ -64,13 +77,5 @@ window.addEventListener('DOMContentLoaded', (event) => {
 			}
 		});
 		editorDiv.querySelector('span').textContent = `demos[${i}].`;
-
-		//create row elements that show the live data
-		let viewerDiv = clientBlock.shadowRoot.childNodes[3];
-		let pre = viewerDiv.querySelector('pre');
-
-		setInterval(() => {
-			pre.textContent = JSON.stringify(demos[i], undefined, 4);
-		}, 260);
 	}
 });

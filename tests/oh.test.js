@@ -30,7 +30,7 @@ test('1. Instantiate OH', () => {
 //async
 test('2. Destroy an OH instance', (done) => {
 	let anInfrastructure = cloneDeep(mocks.infrastructure);
-	let proxy = new OH('test', mocks.server, anInfrastructure);
+	let proxy = new OH('test', mocks.server, anInfrastructure, { delay: 10 });
 	let instance = OH.getInstance(proxy);
 
 	instance.clients.set('some_id', 'some client');
@@ -51,16 +51,16 @@ test('2. Destroy an OH instance', (done) => {
 		setTimeout(() => {
 			expect(isRevoked(proxy)).toBe(true); //takes delay+1000 to be destroyed by Proxserve
 			done();
-		}, instance.delay*2 + 1000);
+		}, 20+1000);
 	});
 });
 
 test('3. Create and send changes to client', (done) => {
 	let anInfrastructure = cloneDeep(mocks.infrastructure);
-	let proxy = new OH('root', mocks.server, anInfrastructure);
+	let proxy = new OH('root', mocks.server, anInfrastructure, { delay: 10 });
 	let instance = OH.getInstance(proxy);
 	instance.io = mocks.io;
-	let delay = instance.delay + 10;
+	let delay = 20;
 
 	let client1 = new mocks.Client();
 	let client2 = new mocks.Client();
