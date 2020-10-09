@@ -174,6 +174,8 @@ function updatePlayerPermissions(index) {
 		pokerInstance.setPermissions(`.players[${index}]`, 0, poker.players[index].id);
 		//only client himself can read & write:
 		pokerInstance.setPermissions(`.players[${index}].personal`, poker.players[index].id, poker.players[index].id);
+		//anyone can write:
+		pokerInstance.setPermissions(`.players[${index}].status`, 0, 0);
 	}
 }
 

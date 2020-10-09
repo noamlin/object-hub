@@ -9,7 +9,6 @@
 
 const debug = require('debug');
 const handlersLog = debug('handlers');
-const { cloneDeep } = require('lodash');
 const ohInstances = require('./instances.js');
 const { evalPath, areValidChanges, digest } = require('../../utils/change-events.js');
 const { defaultBasePermission, permissionsKey, forceEventChangeKey } = require('../../utils/globals.js');
@@ -67,7 +66,7 @@ function onDisconnection(client, reason) {
 function onObjectChange(changes) {
 	let digestion;
 	try {
-		digestion = digest(changes, this);
+		digestion = digest(changes, this, 'read');
 	} catch(error) {
 		console.error(error);
 		return;
@@ -165,11 +164,8 @@ function onObjectChange(changes) {
  * @param {Array} changes 
  */
 function onClientObjectChange(client, changes) {
-	let digestion;
-	try {
-		digestion = digest(changes, this);
-	} catch(error) {
-		console.error(error);
+	if(!areValidChanges(changes)) {
+		console.error('changes received from client are not valid', changes);
 		return;
 	}
 
@@ -178,138 +174,112 @@ function onClientObjectChange(client, changes) {
 
 	let proxy = ohInstances.getProxy(this);
 
-	//check that filteredChanges are not empty
-	if(areValidChanges(digestion.filteredChanges)) {
-		if(!digestion.requiresDifferentPermissions) { //better case where all changes require the same permission(s)
-			let permissionsNode = this.permissionTree.get(digestion.filteredChanges[0].path, true);
-			let isPermitted = client.permissions.verify(permissionsNode, 'write', false);
-			if(!isPermitted) {
-				notPermittedChanges = digestion.filteredChanges; //client isn't permitted to anything
-			}
-		}
-
-		if(notPermittedChanges.length === 0) { //will skip this part if discovered client isn't permitted to anything
-			for(let change of digestion.filteredChanges) {
-				let strictCheck = false;
-				if(change.type !== 'delete' && typeof change.value === 'object') { //trying to create a new object
+	//check each client's change individualy. if client isn't permitted to write to even a part of
+	//this change (i.e. object with unpermitted sub-objects) then disapprove the whole change
+	for(let change of changes) {
+		let strictCheck = false;
+		if(change.type !== 'delete' && typeof change.value === 'object') { //trying to create a new object
+			strictCheck = true;
+		} else { //maybe trying to overwrite/delete an existing object
+			try {
+				let { value } = evalPath(proxy, change.path);
+				if(typeof value === 'object') {
 					strictCheck = true;
-				} else { //maybe trying to overwrite/delete an existing object
-					try {
-						let { value } = evalPath(proxy, change.path);
-						if(typeof value === 'object') {
-							strictCheck = true;
-						}
-					} catch(err) {
-						console.warn(`Client tried to manipulate a path that doesn't exist (or existed and deleted) on the server.
-This may have happened because client was totally out of sync`);
-						//TODO: still not sure if reaching here is an error or not
-					}
 				}
-	
-				if(strictCheck) {
-					let permissionsNode = this.permissionTree.get(change.path, true);
-					let isPermitted = client.permissions.recursiveVerify(permissionsNode, 'write', false);
-					if(!isPermitted) {
-						notPermittedChanges.push(change);
-					} else {
-						permittedChanges.push(change);
-					}
-				} else { //changing a primitive value
-					permittedChanges.push(change);
-				}
+			} catch(err) {
+				console.warn(`Client tried to manipulate a path that doesn't exist (or existed and deleted) on the server.\nThis may have happened because client is out of sync`);
+				//TODO: still not sure if reaching here is an error or not
 			}
 		}
 
-		let disapproveChanges = (changesList, reason='') => {
-			if(changesList.length === 0) return;
+		let permissionsNode = this.permissionTree.get(change.path, true);
+		let isPermitted;
+		if(strictCheck) {
+			isPermitted = client.permissions.recursiveVerify(permissionsNode, 'write', false);
+		} else {
+			isPermitted = client.permissions.verify(permissionsNode, 'write', false);
+		}
 
-			let reversedChanges = [];
+		if(!isPermitted) {
+			notPermittedChanges.push(change);
+		} else {
+			permittedChanges.push(change);
+		}
+	}
+
+	let disapproveChanges = (changesList, reason='') => {
+		if(changesList.length === 0) return;
+
+		let reversedChanges = [];
+		for(let change of changesList) {
+			let reversedChange = {
+				path: change.path,
+				oldValue: change.value,
+				value: client.prepareObject(this, change.path)
+			};
+			
+			if(reversedChange.value === undefined) {
+				//if path doesn't exist on the server or 'client.prepareObject' failed because the client isn't permitted to view it
+				reversedChange.type = 'delete';
+			} else if(change.type === 'delete') { //path exists but the client tried to delete it
+					reversedChange.oldValue = undefined;
+					reversedChange.type = 'create';
+			} else { //path exists and now the client has to update back in order to be synced
+				reversedChange.type = 'update';
+			}
+			
+			if(reason.length > 0) {
+				reversedChange.reason = reason;
+			}
+
+			reversedChanges.push(reversedChange);
+		}
+		this.io.to(client.socket.id).emit('change', reversedChanges); //emit previous values to the client
+	}
+
+	disapproveChanges(notPermittedChanges, 'Denied: no writing permission'); //reverse not-permitted changes
+
+	if(permittedChanges.length > 0) {
+		let applyChanges = (changesList) => {
 			for(let change of changesList) {
-				switch(change.type) {
-					case 'create':
-						reversedChanges.push({
-							path: change.path,
-							oldValue: change.value,
-							value: undefined,
-							type: 'delete'
-						});
-						break;
-					case 'update':
-						reversedChanges.push({
-							path: change.path,
-							oldValue: change.value,
-							value: client.prepareObject(this, change.path),
-							type: 'update'
-						});
-
-						if(reversedChanges[reversedChanges.length - 1].value === undefined) {
-							//if 'client.prepareObject' failed then the client isn't permitted to view this path at all
-							reversedChanges[reversedChanges.length - 1].type = 'delete';
-						}
-
-						break;
-					case 'delete':
-						reversedChanges.push({
-							path: change.path,
-							oldValue: undefined,
-							value: client.prepareObject(this, change.path),
-							type: 'create'
-						});
-						break;
-				}
-				if(reason.length > 0) {
-					reversedChanges[reversedChanges.length - 1].reason = reason;
-				}
-			}
-			this.io.to(client.socket.id).emit('change', reversedChanges); //emit previous values to the client
-		}
-
-		disapproveChanges(notPermittedChanges, 'Denied: no writing permission'); //reverse not-permitted changes
-
-		if(permittedChanges.length > 0) {
-			let applyChanges = (changesList) => {
-				for(let change of changesList) {
-					try {
-						let {object, property} = evalPath(proxy, change.path);
-						switch(change.type) {
-							case 'create':
-							case 'update':
-								object[ property ] = change.value;
-								break;
-							case 'delete':
-								delete object[ property ];
-								break;
-						}
-					} catch(error) {
-						console.error(error);
+				try {
+					let {object, property} = evalPath(proxy, change.path);
+					switch(change.type) {
+						case 'create':
+						case 'update':
+							object[ property ] = change.value;
+							break;
+						case 'delete':
+							delete object[ property ];
+							break;
 					}
+				} catch(error) {
+					console.error(error);
 				}
-			}
-
-			/**
-			 * a function emitted with the 'client-change' event so the user can commit (or not) a change.
-			 * this changes are committed immediately so they will get in the right place in proxserve's cycle
-			 * @param {Change} change - a reference to a change from 'permittedChanges'
-			 * @param {Boolean} [allow] - allow or deny
-			 * @param {String} [reason] - reason why is denied
-			 */
-			let commitChange = (change, allow=true, reason='Denied: overwritten by server') => {
-				if(allow) {
-					applyChanges([change]); //applies this single change iimediately
-				} else {
-					disapproveChanges([change], reason); //disapprove this single change iimediately
-				}
-			}
-
-			if(this.listenerCount('client-change') >= 1) {
-				this.emit('client-change', permittedChanges, client, commitChange); //hook to catch client's change before emitting to all clients
-			}
-			else {
-				applyChanges(permittedChanges);
 			}
 		}
-	} else {
-		console.error('changes received from client are not valid', changes);
+
+		/**
+		 * a function emitted with the 'client-change' event so the user can commit (or not) a change.
+		 * this changes are committed immediately so they will get in the right place in proxserve's cycle
+		 * @param {Change} change - a reference to a change from 'permittedChanges'
+		 * @param {Boolean} [allow] - allow or deny
+		 * @param {String} [reason] - reason why is denied
+		 */
+		let commitChange = (change, allow=true, reason='Denied: overwritten by server') => {
+			if(allow) {
+				applyChanges([change]); //applies this single change iimediately
+			} else {
+				disapproveChanges([change], reason); //disapprove this single change iimediately
+			}
+		}
+
+		if(this.listenerCount('client-change') >= 1) {
+			this.emit('client-change', permittedChanges, client, commitChange); //hook to catch client's change before emitting to all clients
+		}
+		else {
+			applyChanges(permittedChanges);
+		}
 	}
 }
 

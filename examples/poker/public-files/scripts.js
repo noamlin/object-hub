@@ -85,7 +85,7 @@ var UI = {
 		try {
 			({span, place} = UI.playerElementsMap.get(player));
 		} catch(error) {
-			console.error(error);
+			console.warn(error.message);
 			return;
 		}
 		

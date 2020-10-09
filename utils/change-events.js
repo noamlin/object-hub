@@ -43,9 +43,10 @@ function areValidChanges(changes) {
  * - comparing all possible permissions
  * @param {Array.<Change>} changes
  * @param {Object} oh
+ * @param {Object} type - whether to compare required permissions of 'read' or 'write'
  * @param {Object} [digested] - already digested parts
  */
-function digest(changes, oh, digested) {
+function digest(changes, oh, type, digested) {
 	if(!areValidChanges(changes)) {
 		throw new Error('Invalid changes were given');
 	}
@@ -82,7 +83,7 @@ function digest(changes, oh, digested) {
 		//check if permission is different between changes. inner changes will be check during the recursion
 		if(digested.requiresDifferentPermissions === false) {
 			let currentPermission = oh.permissionTree.get(change.path);
-			if(oh.permissionTree.compare(digested.permission, currentPermission, 'read') === false) {
+			if(oh.permissionTree.compare(digested.permission, currentPermission, type) === false) {
 				digested.requiresDifferentPermissions = true;
 			}
 		}
@@ -99,7 +100,7 @@ function digest(changes, oh, digested) {
 			}
 			
 			if(innerChanges.length > 0) {
-				digest(innerChanges, oh, digested);
+				digest(innerChanges, oh, type, digested);
 			}
 		}
 		else if((change.type === 'create' || change.type === 'update') && typeofchange === 'Array') {
@@ -110,7 +111,7 @@ function digest(changes, oh, digested) {
 			}
 
 			if(innerChanges.length > 0) {
-				digest(innerChanges, oh, digested);
+				digest(innerChanges, oh, type, digested);
 			}
 		}
 		else {

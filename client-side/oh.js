@@ -33,10 +33,10 @@ var OH = (function() {
 		}
 	
 		for(let change of changes) {
-			if(typeof change.path !== 'string' ||
-				!validChangeTypes.includes(change.type) ||
-				(!change.hasOwnProperty('value') && change.type !== 'delete') ||
-				(!change.hasOwnProperty('oldValue') && change.type !== 'create')) {
+			if(typeof change.path !== 'string'
+			|| !validChangeTypes.includes(change.type)
+			|| (!change.hasOwnProperty('value') && change.type !== 'delete') /*create and update must have a 'value' property*/
+			|| (!change.hasOwnProperty('oldValue') && change.type === 'update')) {/*update must have an 'oldValue' property*/
 				return false;
 			}
 		}
@@ -72,13 +72,13 @@ var OH = (function() {
 	}
 
 	/**
-	 * match changes against another changes list that lives for a limited time
-	 * and return only the unique changes
+	 * match changes against another changes list that lives for a limited time and return only the unique changes
 	 * @param {Array.<Change>} changes
 	 * @param {Array.<{0: Change, 1: Number}>} matchAgainst
 	 * @param {Number} ttl - time to live for the 'matchAgainst' changes
+	 * @param {Number} cb - callback function to call upon each unique (unmatched) change
 	 */
-	function* xorChanges(changes, matchAgainst, ttl) {
+	function xorChanges(changes, matchAgainst, ttl, cb) {
 		let now = Date.now();
 
 		changesLoop: for(let i = 0; i < changes.length; i++) {
@@ -105,14 +105,11 @@ var OH = (function() {
 				}
 			}
 
-			yield change;
+			cb(change);
 		}
 
 		if(matchAgainst.length > 200) {
-			console.warn(`matchAgainst list exceeded 200 changes!
-This should not happen since matchAgainst is supposed to regularly get matched and cleaned up.
-Client might be out of sync.
-performing matchAgainst brute force cleanup`);
+			console.warn(`matchAgainst list exceeded 200 changes!\nThis should not happen since matchAgainst is supposed to regularly get matched and cleaned up.\nClient might be out of sync.\nperforming matchAgainst brute force cleanup`);
 			//TODO - should we re-sync the client with the server's OH?
 			for(let j = matchAgainst.length - 1; j >= 0; j--) {
 				if(now - matchAgainst[j][1] >= ttl) {
@@ -120,8 +117,6 @@ performing matchAgainst brute force cleanup`);
 				}
 			}
 		}
-
-		return;
 	}
 
 	return class OH {
@@ -173,10 +168,8 @@ performing matchAgainst brute force cleanup`);
 				//preventing infinite loop of emitting the changes we got from the server back to the server
 				let now = Date.now();
 
-				let generateChange = xorChanges(changes, this.clientChangesQueue, 1000);
-				let genYield;
-				while((genYield = generateChange.next()).done !== true) {
-					let change = genYield.value;
+				let ttl = Math.max(this.proxserveOptions.delay * 5, 500); //minimum 500ms for slow CPUs (like mobile phones)
+				xorChanges(changes, this.clientChangesQueue, ttl, (change) => {
 					this.serverChangesQueue.push([change, now]); //save the change - value references might be altered later
 					let parts = Proxserve.splitPath(change.path);
 					let currObj = this.object;
@@ -217,7 +210,7 @@ performing matchAgainst brute force cleanup`);
 					if(typeof change.reason === 'string' && change.reason.length >= 1) {
 						console.warn(change.path, change.reason);
 					}
-				}
+				});
 			} else {
 				console.error('changes received from server are not valid', changes);
 			}
@@ -232,13 +225,11 @@ performing matchAgainst brute force cleanup`);
 			//shallow copy in order not to change the reference of changes which is also used by client's listeners
 			let clientChanges = [];
 
-			let generateChange = xorChanges(changes, this.serverChangesQueue, this.proxserveOptions.delay * 2);
-			let genYield;
-			while((genYield = generateChange.next()).done !== true) {
-				let change = genYield.value;
+			let ttl = Math.max(this.proxserveOptions.delay * 5, 500); //minimum 500ms for slow CPUs (like mobile phones)
+			xorChanges(changes, this.serverChangesQueue, ttl, (change) => {
 				clientChanges.push(change);
 				this.clientChangesQueue.push([change, now]);
-			}
+			});
 
 			if(clientChanges.length >= 1) {
 				this.socket.emit('change', clientChanges);

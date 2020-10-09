@@ -116,7 +116,7 @@ demoInstance.on('client-change', function(changes, client, commitChange) {
 
 		if(object === demo && ['foo','bar'].includes(property)) {
 			//switch between 'foo' and 'bar', and also print who commited the change
-			commitChange(change, false);
+			commitChange(change, false); //first of all deny the original change
 	
 			if(property === 'foo') {
 				property = 'bar';
