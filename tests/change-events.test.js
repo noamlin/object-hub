@@ -86,7 +86,7 @@ test('digest changes method', () => {
 		{ path: '.dynamic.xyz[2]', oldValue: undefined, type: 'create', value: 2 }
 	];
 
-	let digestedChanges = digest(changes, instance);
+	let digestedChanges = digest(changes, instance, 'read');
 	expect(digestedChanges.filteredChanges).toEqual(changes);
 	expect(digestedChanges.spreadedChanges).toEqual(shouldBe);
 	expect(digestedChanges.requiresDifferentPermissions).toBe(false);
@@ -96,7 +96,7 @@ test('digest changes method', () => {
 	let shouldBeFiltered = cloneDeep(changes);
 	shouldBeFiltered.pop();
 
-	digestedChanges = digest(changes, instance);
+	digestedChanges = digest(changes, instance, 'read');
 	expect(digestedChanges.filteredChanges).toEqual(shouldBeFiltered);
 	expect(digestedChanges.spreadedChanges).toEqual(shouldBe);
 	expect(digestedChanges.requiresDifferentPermissions).toBe(false);
@@ -136,11 +136,14 @@ test('digest changes method', () => {
 		{ path: '.dynamic.jtr', oldValue: undefined, type: 'create', value: 'primitive three' }
 	];
 
-	instance.setPermissions('dynamic.abc', 1);
-	instance.setPermissions('dynamic.xyz', 2);
+	instance.setPermissions('dynamic.abc', 1, 0);
+	instance.setPermissions('dynamic.xyz', 2, 0);
 
-	digestedChanges = digest(changes, instance);
+	digestedChanges = digest(changes, instance, 'read');
 	expect(digestedChanges.filteredChanges).toEqual(shouldBeFiltered);
 	expect(digestedChanges.spreadedChanges).toEqual(shouldBe);
 	expect(digestedChanges.requiresDifferentPermissions).toBe(true);
+
+	digestedChanges = digest(changes, instance, 'write');
+	expect(digestedChanges.requiresDifferentPermissions).toBe(false);
 });
