@@ -209,15 +209,16 @@ var onChange = {
 	players: function(changes) {
 		for(let change of changes) {
 			let segments = Proxserve.splitPath(change.path);
-			//path leads to one property which is a direct cell of the array
-			if(segments.length === 1 && isNumeric(segments[0])) {
-				updatePlayersList();
-				return;
+			//path leads to one property which is a direct cell of the array, meaning the object of a player
+			if(isNumeric(segments[0])) {
+				if(segments.length === 1) {
+					updatePlayersList();
+					return;
+				} else {
+					UI.updatePlayerInfo(this[segments[0]]);
+				}
 			}
 		}
-	},
-	player: function(changes) {
-		UI.updatePlayerInfo(this);
 	},
 	me: function(changes) {
 		UI.updateMyCards();
@@ -264,7 +265,6 @@ function updatePlayersList() {
 
 		UI.playerElementsMap.set(player, {span: span, place: place});
 		UI.updatePlayerInfo(player);
-		player.on('change', onChange.player);
 		playersElm.appendChild(span);
 		playersElm.appendChild(document.createElement('br'));
 	}

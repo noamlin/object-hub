@@ -72,51 +72,26 @@ var OH = (function() {
 	}
 
 	/**
-	 * match changes against another changes list that lives for a limited time and return only the unique changes
+	 * match changes list against a secondary changes list and returns only the unique changes of the primary list
 	 * @param {Array.<Change>} changes
-	 * @param {Array.<{0: Change, 1: Number}>} matchAgainst
-	 * @param {Number} ttl - time to live for the 'matchAgainst' changes
-	 * @param {Number} cb - callback function to call upon each unique (unmatched) change
+	 * @param {Array.<Change>} matchAgainst
 	 */
-	function xorChanges(changes, matchAgainst, ttl, cb) {
-		let now = Date.now();
+	function xorChanges(changes, matchAgainst) {
+		let uniqueChanges = changes.slice();
 
-		changesLoop: for(let i = 0; i < changes.length; i++) {
-			let change = changes[i];
-
-			let value;
-			try {
-				value = change.value.$getOriginalTarget(); //in case it was proxied
-			} catch(err) {
-				value = change.value; //just a primitive
-			}
-
-			for(let j = matchAgainst.length - 1; j >= 0; j--) {
-				let againstChange = matchAgainst[j][0];
-
-				if(now - matchAgainst[j][1] >= ttl) {
-					matchAgainst.splice(j, 1); //this change is expired
-				}
-				
+		changesLoop: for(let i = 0; i < matchAgainst.length; i++) {
+			let againstChange = matchAgainst[i];
+			for(let j = uniqueChanges.length - 1; j >= 0; j--) {
+				let change = uniqueChanges[j];
 				if(change.type === againstChange.type && change.path === againstChange.path /*probably the same change*/
-				&& (change.type === 'delete' || simpleDeepEqual(value, againstChange.value))) { //both are delete or both change to the same value
-					matchAgainst.splice(j, 1); //matchAgainst change should match once
+				&& (change.type === 'delete' || simpleDeepEqual(change.value, againstChange.value))) { //both are delete or both change to the same value
+					uniqueChanges.splice(j, 1);
 					continue changesLoop;
 				}
 			}
-
-			cb(change);
 		}
 
-		if(matchAgainst.length > 200) {
-			console.warn(`matchAgainst list exceeded 200 changes!\nThis should not happen since matchAgainst is supposed to regularly get matched and cleaned up.\nClient might be out of sync.\nperforming matchAgainst brute force cleanup`);
-			//TODO - should we re-sync the client with the server's OH?
-			for(let j = matchAgainst.length - 1; j >= 0; j--) {
-				if(now - matchAgainst[j][1] >= ttl) {
-					matchAgainst.splice(j, 1); //this change is expired
-				}
-			}
-		}
+		return uniqueChanges;
 	}
 
 	return class OH {
@@ -124,8 +99,10 @@ var OH = (function() {
 			this.domain = domain;
 			this.id;
 			this.initiated = false;
-			this.clientChangesQueue = []; //the changes made by the client
-			this.serverChangesQueue = []; //the changes received from the server
+			this.changesQueue = {
+				client: [], /*the changes made by the client*/
+				server: [] /*the changes received from the server*/
+			};
 
 			this.proxserveOptions = {
 				delay: (proxserveOptions.delay !== undefined) ? proxserveOptions.delay : 10,
@@ -164,13 +141,12 @@ var OH = (function() {
 		 */
 		updateObject(changes) {
 			if(areValidChanges(changes)) {
-				//all changes are queueq for 10 ms and then fired to all listeners. so we will flag to stop our next listener call
-				//preventing infinite loop of emitting the changes we got from the server back to the server
-				let now = Date.now();
-
-				let ttl = Math.max(this.proxserveOptions.delay * 5, 500); //minimum 500ms for slow CPUs (like mobile phones)
-				xorChanges(changes, this.clientChangesQueue, ttl, (change) => {
-					this.serverChangesQueue.push([change, now]); //save the change - value references might be altered later
+				//prevent infinite loop of:
+				//client changes & notify server -> server changes & notify client -> client changes again & notify again..
+				let uniqueChanges = xorChanges(changes, this.changesQueue.client);
+				this.changesQueue.client = []; //check against client-made-changes should happen for only one cycle
+				for(let change of uniqueChanges) {
+					this.changesQueue.server.push(change); //save the change - value references might be altered later
 					let parts = Proxserve.splitPath(change.path);
 					let currObj = this.object;
 
@@ -210,7 +186,7 @@ var OH = (function() {
 					if(typeof change.reason === 'string' && change.reason.length >= 1) {
 						console.warn(change.path, change.reason);
 					}
-				});
+				};
 			} else {
 				console.error('changes received from server are not valid', changes);
 			}
@@ -221,18 +197,15 @@ var OH = (function() {
 		 * @param {Array.<Change>} changes 
 		 */
 		onObjectChange(changes) {
-			let now = Date.now();
-			//shallow copy in order not to change the reference of changes which is also used by client's listeners
-			let clientChanges = [];
+			//work on a copy of 'changes' in order not to change the reference of changes which is also used by client's listeners.
+			//prevent infinite loop of:
+			//server changes & notify client -> client changes & notify server -> server changes again & notify again..
+			let uniqueChanges = xorChanges(changes, this.changesQueue.server);
+			this.changesQueue.server = []; //check against server-changes should happen for only one cycle
 
-			let ttl = Math.max(this.proxserveOptions.delay * 5, 500); //minimum 500ms for slow CPUs (like mobile phones)
-			xorChanges(changes, this.serverChangesQueue, ttl, (change) => {
-				clientChanges.push(change);
-				this.clientChangesQueue.push([change, now]);
-			});
-
-			if(clientChanges.length >= 1) {
-				this.socket.emit('change', clientChanges);
+			if(uniqueChanges.length >= 1) {
+				this.changesQueue.client = this.changesQueue.client.concat(uniqueChanges);
+				this.socket.emit('change', uniqueChanges);
 			}
 		}
 	};
