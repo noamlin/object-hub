@@ -12,7 +12,7 @@ const ohInstances = require('../oh/instances.js');
 const { ClientPermissions } = require('../permissions/permissions.js');
 const { defaultBasePermission } = require('../../utils/globals.js');
 const { str2VarName, realtypeof } = require('../../utils/variables.js');
-const { evalPath } = require('../../utils/change-events.js');
+const Proxserve = require('proxserve');
 
 module.exports = exports = class Client {
 	constructor(socket) {
@@ -86,7 +86,7 @@ module.exports = exports = class Client {
 		if(this.permissions.verify(permissionNode, 'read', false)) { //check if client even has permissions to access the root object
 			let proxy = ohInstances.getProxy(oh);
 			try {
-				let { value } = evalPath(proxy, path);
+				let { value } = Proxserve.evalPath(proxy, path);
 				return this.prepareObjectIterator(cloneDeep(value), permissionNode);
 			} catch(error) {
 				console.error(error);

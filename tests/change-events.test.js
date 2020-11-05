@@ -1,38 +1,10 @@
 "use strict"
 
-const { splitPath, evalPath, areValidChanges, digest } = require('../utils/change-events.js');
+const { areValidChanges, digest } = require('../utils/change-events.js');
 const OH = require('../classes/oh/oh.js');
 const { forceEventChangeKey } = require('../utils/globals.js');
 const { infrastructure, MockSocket, mockIO } = require('./mocks.js');
 const { cloneDeep } = require('lodash');
-
-test('splitPath method', () => {
-	expect(splitPath('')).toEqual([]);
-	expect(splitPath('ab.cd.ef')).toEqual(['ab','cd','ef']);
-	expect(splitPath('ab.cd[1].ef[2][3]')).toEqual(['ab','cd','1','ef','2','3']);
-});
-
-test('evalPath method', () => {
-	let obj = {
-		aa: {
-			bb: {
-				cc: 123
-			}
-		}
-	};
-	expect(evalPath(obj, 'aa.bb.cc')).toEqual({ object: { cc:123 }, property: 'cc', value: 123 });
-	expect(evalPath(obj, 'aa.bb')).toEqual({ object: { bb: { cc:123 } }, property: 'bb', value: {cc:123} });
-	expect(evalPath(obj, 'aa')).toEqual({ object: obj, property: 'aa', value: {bb:{cc:123}} });
-	expect(evalPath(obj, '')).toEqual({ object: obj, property: undefined, value: obj });
-
-	obj.dd = {
-		ee: [
-			0, [0, ['a','b','c'], 2], 2
-		]
-	};
-	expect(evalPath(obj, 'dd.ee[1][1][2]')).toEqual({ object: ['a','b','c'], property: '2', value: 'c' });
-	expect(evalPath(obj, 'dd.ee[1][1]')).toEqual({ object: [0, ['a','b','c'], 2], property: '1', value: ['a','b','c'] });
-});
 
 test('areValidChanges method', () => {
 	let changes = []; //empty

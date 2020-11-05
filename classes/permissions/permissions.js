@@ -3,7 +3,6 @@
 const Proxserve = require('proxserve');
 const { isEqual } = require('lodash');
 const { realtypeof, isNumeric } = require('../../utils/variables.js');
-const { splitPath } = require('../../utils/change-events.js');
 const { defaultBasePermission, permissionsKey, path2nodeKey } = require('../../utils/globals.js');
 
 class PermissionTree {

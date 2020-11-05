@@ -3,23 +3,26 @@
  */
 "use strict";
 
-const Proxserve = require('proxserve');
 const { realtypeof } = require('./variables.js');
 const { forceEventChangeKey } = require('../utils/globals.js');
 const ohInstances = require('../classes/oh/instances.js');
 
 var validChangeTypes = ['create','update','delete'];
 
+/**
+ * check if received changes is a valid array of changes
+ * @param {Array.<Change>} changes 
+ */
 function areValidChanges(changes) {
 	if(!Array.isArray(changes) || changes.length === 0) {
 		return false;
 	}
 
 	for(let change of changes) {
-		if(typeof change.path !== 'string' ||
-			!validChangeTypes.includes(change.type) ||
-			(!change.hasOwnProperty('value') && change.type !== 'delete') ||
-			(!change.hasOwnProperty('oldValue') && change.type !== 'create')) {
+		if(typeof change.path !== 'string'
+		|| !validChangeTypes.includes(change.type)
+		|| (!change.hasOwnProperty('value') && change.type !== 'delete') /*create and update must have a 'value' property*/
+		|| (!change.hasOwnProperty('oldValue') && change.type === 'update')) {/*update must have an 'oldValue' property*/
 			return false;
 		}
 	}
@@ -123,8 +126,6 @@ function digest(changes, oh, type, digested) {
 }
 
 module.exports = exports = {
-	splitPath: Proxserve.splitPath,
-	evalPath: Proxserve.evalPath,
 	areValidChanges: areValidChanges,
 	digest: digest
 };

@@ -14,8 +14,12 @@ server.listen(1337);
 app.get('/', (req, res) => { res.sendFile(`${baseDir}/examples/general/index.html`); });
 app.get('/styles.css', (req, res) => { res.sendFile(`${baseDir}/examples/general/styles.css`); });
 app.get('/scripts.js', (req, res) => { res.sendFile(`${baseDir}/examples/general/client-scripts.js`); });
-app.get('/oh.js', (req, res) => { res.sendFile(`${baseDir}/client-side/oh.js`); });
-app.get('/proxserve.js', (req, res) => { res.sendFile(`${baseDir}/node_modules/proxserve/index.js`); });
+
+app.get('/oh.js', (req, res) => { res.sendFile(`${baseDir}/client-side/dist/oh.js`); });
+app.get('/oh.js.map', (req, res) => { res.sendFile(`${baseDir}/client-side/dist/oh.js.map`); });
+
+app.get('/proxserve.js', (req, res) => { res.sendFile(`${baseDir}/node_modules/proxserve/dist/proxserve.js`); });
+app.get('/proxserve.js.map', (req, res) => { res.sendFile(`${baseDir}/node_modules/proxserve/dist/proxserve.js.map`); });
 
 let infrastructure = {
 	free_for_all: {

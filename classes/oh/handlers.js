@@ -10,7 +10,8 @@
 const debug = require('debug');
 const handlersLog = debug('handlers');
 const ohInstances = require('./instances.js');
-const { evalPath, areValidChanges, digest } = require('../../utils/change-events.js');
+const Proxserve = require('proxserve');
+const { areValidChanges, digest } = require('../../utils/change-events.js');
 const { defaultBasePermission, permissionsKey, forceEventChangeKey } = require('../../utils/globals.js');
 
 var changeID = 1;
@@ -182,7 +183,8 @@ function onClientObjectChange(client, changes) {
 			strictCheck = true;
 		} else { //maybe trying to overwrite/delete an existing object
 			try {
-				let { value } = evalPath(proxy, change.path);
+const ohInstances = require('./instances.js');
+				let { value } = Proxserve.evalPath(proxy, change.path);
 				if(typeof value === 'object') {
 					strictCheck = true;
 				}
@@ -243,7 +245,7 @@ function onClientObjectChange(client, changes) {
 		let applyChanges = (changesList) => {
 			for(let change of changesList) {
 				try {
-					let {object, property} = evalPath(proxy, change.path);
+					let {object, property} = Proxserve.evalPath(proxy, change.path);
 					switch(change.type) {
 						case 'create':
 						case 'update':

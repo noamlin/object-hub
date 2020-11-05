@@ -8,7 +8,10 @@
 		"start": "node index.js",
 		"example-general": "DEBUG=handlers node examples/general/index.js",
 		"example-poker": "DEBUG=handlers node examples/poker/poker.js",
-		"test": "jest"
+		"test": "jest",
+		"build": "npm run build-unminified; npm run build-minified",
+		"build-unminified": "parcel build client-side/src/oh.js --out-dir client-side/dist --out-file oh.js --global OH --no-minify",
+		"build-minified": "parcel build client-side/src/oh.js --out-dir client-side/dist --out-file oh.min.js --global OH"
 	},
 	"dependencies": {
 		"debug": "^4.2.0",

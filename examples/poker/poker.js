@@ -14,8 +14,13 @@ server.listen(1337);
 
 app.get('/', (req, res) => { res.sendFile(`${baseDir}/examples/poker/index.html`); });
 app.get(/\/game\d*.html/, (req, res) => { res.sendFile(`${baseDir}/examples/poker/game.html`); });
-app.get('/oh.js', (req, res) => { res.sendFile(`${baseDir}/client-side/oh.js`); });
-app.get('/proxserve.js', (req, res) => { res.sendFile(`${baseDir}/node_modules/proxserve/index.js`); });
+
+app.get('/oh.js', (req, res) => { res.sendFile(`${baseDir}/client-side/dist/oh.js`); });
+app.get('/oh.js.map', (req, res) => { res.sendFile(`${baseDir}/client-side/dist/oh.js.map`); });
+
+app.get('/proxserve.js', (req, res) => { res.sendFile(`${baseDir}/node_modules/proxserve/dist/proxserve.js`); });
+app.get('/proxserve.js.map', (req, res) => { res.sendFile(`${baseDir}/node_modules/proxserve/dist/proxserve.js.map`); });
+
 app.use('/public-files', express.static(`${baseDir}/examples/poker/public-files`));
 
 var pokerDefaults = {

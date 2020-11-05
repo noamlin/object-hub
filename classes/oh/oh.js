@@ -15,7 +15,6 @@ const Client = require('../client/client.js');
 const { PermissionTree } = require('../permissions/permissions.js');
 const handlers = require('./handlers.js');
 const { str2VarName } = require('../../utils/variables.js');
-const { splitPath, evalPath } = require('../../utils/change-events.js');
 
 class OHinstance extends EventEmitter {
 	constructor(domain, io) {
@@ -112,7 +111,7 @@ module.exports = exports = class OH {
 	 * @param {String} path 
 	 */
 	static splitPath(path) {
-		return splitPath(path);
+		return Proxserve.splitPath(path);
 	}
 
 	/**
@@ -122,6 +121,6 @@ module.exports = exports = class OH {
 	 * @returns {Object} - returns {object, property, value}
 	 */
 	static evalPath(obj, path) {
-		return evalPath(obj, path);
+		return Proxserve.evalPath(obj, path);
 	}
 };
