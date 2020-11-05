@@ -7,29 +7,6 @@
  */
 "use strict"
 
-var validChangeTypes = ['create','update','delete'];
-
-/**
- * check if received changes is a valid array of changes
- * @param {Array.<Change>} changes 
- */
-export function areValidChanges(changes) {
-	if(!Array.isArray(changes) || changes.length === 0) {
-		return false;
-	}
-
-	for(let change of changes) {
-		if(typeof change.path !== 'string'
-		|| !validChangeTypes.includes(change.type)
-		|| (!change.hasOwnProperty('value') && change.type !== 'delete') /*create and update must have a 'value' property*/
-		|| (!change.hasOwnProperty('oldValue') && change.type === 'update')) {/*update must have an 'oldValue' property*/
-			return false;
-		}
-	}
-
-	return true;
-}
-
 function isObject(obj) {
 	return (obj !== null && typeof obj === 'object');
 }

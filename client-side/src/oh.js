@@ -8,7 +8,8 @@
 "use strict"
 
 import { simpleClone } from '../../node_modules/proxserve/general-functions.js';
-import { areValidChanges, simpleDeepEqual, xorChanges } from './functions.js';
+import { simpleDeepEqual, xorChanges } from './functions.js';
+import { areValidChanges } from '../../utils/change-events.js';
 
 /**
  * the change object as emitted from Proxserve
